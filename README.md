@@ -4,7 +4,9 @@
 [![Changelog](https://img.shields.io/github/v/release/ananis25/funsql-python?include_prereleases&label=changelog)](https://github.com/ananis25/funsql-python/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/ananis25/funsql-python/blob/main/LICENSE)
 
-`funsql` is a python library to write compositional sql, and mostly a line by line port of the Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). 
+`funsql` is a python library to write SQL queries in a way that is more composable. 
+
+The initial implementation is mostly a line by line port of the Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! While I try improve the documentation here, go over to the parent repository which motivates the project. 
 
 ## Installation
 
