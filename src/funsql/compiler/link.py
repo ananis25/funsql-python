@@ -97,7 +97,7 @@ def validate_rowtype(t: RowType, ref: SQLNode, ctx: AnnotateContext) -> None:
         ref = ref.over
 
     if isinstance(ref, Get) and ref.over is None:
-        name = ref.name
+        name = ref._name
         ft = t.fields.get(name, EmptyType())
         if not isinstance(ft, ScalarType):
             error_type = (
@@ -115,7 +115,7 @@ def validate_rowtype(t: RowType, ref: SQLNode, ctx: AnnotateContext) -> None:
                 raise ErrReference(error_type, name=name, path=ctx.get_path(ref))
 
     elif isinstance(ref, Agg) and ref.over is None:
-        name = ref.name
+        name = ref._name
         if not isinstance(t.group, RowType):
             error_type = (
                 ErrType.UNEXPECTED_AGG
@@ -179,7 +179,7 @@ def route(lt: T, rt: T, ref: SQLNode) -> Literal[-1, 1]:
             ref = ref.over
 
         if isinstance(ref, Get):
-            return -1 if ref.name in lt.fields else 1
+            return -1 if ref._name in lt.fields else 1
         elif isinstance(ref, Agg):
             return -1 if isinstance(lt.group, RowType) else 1
         else:
@@ -253,10 +253,10 @@ def _(node: Define, refs: list[SQLNode], ctx: AnnotateContext) -> None:
     box = check_box(node.over)
     seen: set[Symbol] = set()
     for ref in refs:
-        if isinstance(ref, Get) and ref.over is None and ref.name in node.label_map:
-            if ref.name not in seen:
-                seen.add(ref.name)
-                col = node.args[node.label_map[ref.name]]
+        if isinstance(ref, Get) and ref.over is None and ref._name in node.label_map:
+            if ref._name not in seen:
+                seen.add(ref._name)
+                col = node.args[node.label_map[ref._name]]
                 gather_n_validate(col, box.refs, box.typ, ctx)
         else:
             box.refs.append(ref)

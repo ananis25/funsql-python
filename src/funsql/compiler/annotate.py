@@ -708,7 +708,7 @@ def rebind(
 
     while isinstance(parent, Get):
         ctx.mark_origin(node_isolated)
-        node_isolated = NameBound(over=node_isolated, name=parent.name)
+        node_isolated = NameBound(over=node_isolated, name=parent._name)
         parent = parent.over
     if parent is not None:
         handle = ctx.make_handle(parent)
@@ -722,7 +722,7 @@ def _(node: Agg, ctx: AnnotateContext) -> SQLNode:
     # TODO: how critical is it to annotate these attributes in order? For each type of node?
     args_p = annotate_scalar(node.args, ctx)
     filter_p = annotate_scalar(node.filter_, ctx)
-    node_p = Agg(node.name, *args_p, distinct=node.distinct, filter_=filter_p)
+    node_p = Agg(node._name, *args_p, distinct=node.distinct, filter_=filter_p)
     return rebind(node.over, node_p, ctx)
 
 
@@ -792,12 +792,12 @@ def _(node: From, ctx: AnnotateContext) -> SQLNode:
 def _(node: Fun, ctx: AnnotateContext) -> SQLNode:
     """Annotate all the arguments to the function node"""
     args_p = annotate_scalar(node.args, ctx)
-    return Fun(node.name, *args_p)
+    return Fun(node._name, *args_p)
 
 
 @annotate_node_scalar.register
 def _(node: Get, ctx: AnnotateContext) -> SQLNode:
-    return rebind(node.over, Get(name=node.name), ctx)
+    return rebind(node.over, Get(name=node._name), ctx)
 
 
 @annotate_node.register

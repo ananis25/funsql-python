@@ -95,12 +95,13 @@ class SQLClause(Generic[T]):
         Credits: The pattern is lifted off a stackoverflow answer I can't find the link to.
         """
         scalar_attrs, sequence_attrs = _get_refs_for_clause(self.__class__)
-        return tuple(
-            [
-                *(getattr(self, attr) for attr in scalar_attrs),
-                *(tuple(getattr(self, attr)) for attr in sequence_attrs),
-            ]
-        )
+        vals = []
+        for attr in scalar_attrs:
+            vals.append(getattr(self, attr))
+        for attr in sequence_attrs:
+            val = getattr(self, attr)
+            vals.append(tuple(val) if val is not None else None)
+        return tuple(vals)
 
     def __hash__(self) -> int:
         return hash(self._key())

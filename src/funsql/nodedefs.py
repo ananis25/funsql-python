@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Any, Optional, Union, Callable
 
-from .common import Symbol, S, register_union_type
+from .common import Symbol, S, LITERAL_TYPES, register_union_type
 from .sqlcontext import SQLTable, ValuesTable
 from .nodes import *
 from .clauses import SQLClause
@@ -64,6 +64,9 @@ class ExtendAttrs(type):
     A SQLNode using this as a metaclass can support fluent syntax like
     `Fun.count(*args)` instead of `Fun("count", *args)`. Used by the `Fun`
     and `Agg` classes.
+
+    NOTE: This is a frequence source of bugs, since the user provided key value
+    might clash with an attribute of the class. Look out for it probably?
     """
 
     def __getattr__(cls, key: str) -> Callable:
@@ -118,7 +121,7 @@ def _cast_to_node_skip_none(node: Union[SQLNode, Any]) -> Optional[SQLNode]:
 
 
 class Agg(SQLNode, metaclass=ExtendAttrs):
-    name: Symbol
+    _name: Symbol
     args: list[SQLNode]
     distinct: bool
     filter_: Optional[SQLNode]
@@ -133,7 +136,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
-        self.name = S(name)
+        self._name = S(name)
         self.args = [_cast_to_node(arg) for arg in args]
         self.distinct = distinct
         self.filter_ = _cast_to_node_skip_none(filter_)
@@ -141,7 +144,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
         return self.__class__(
-            self.name,
+            self._name,
             *self.args,
             distinct=self.distinct,
             filter_=self.filter_,
@@ -153,7 +156,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
         name = "Agg"
         args = []
 
-        _name_str = str(self.name)
+        _name_str = str(self._name)
         if _name_str.isalpha():
             name = f"Agg.{_name_str}"  # Agg.Count
         else:
@@ -338,12 +341,12 @@ class From(TabularNode):
 
 
 class Fun(SQLNode, metaclass=ExtendAttrs):
-    name: Symbol
+    _name: Symbol
     args: list[SQLNode]
 
     def __init__(self, name: Union[str, Symbol], *args: SQLNode) -> None:
         super().__init__()
-        self.name = S(name)
+        self._name = S(name)
         self.args = [_cast_to_node(arg) for arg in args]
 
     @check_repr_context
@@ -351,7 +354,7 @@ class Fun(SQLNode, metaclass=ExtendAttrs):
         name = "Fun"
         args = []
 
-        _name_str = str(self.name)
+        _name_str = str(self._name)
         if _name_str.isalpha():
             name = f"Fun.{_name_str}"  # Fun.exists
         else:
@@ -365,29 +368,29 @@ class Fun(SQLNode, metaclass=ExtendAttrs):
 class Get(SQLNode, metaclass=ExtendAttrsFull):
     """`Get` node creates a column/table reference."""
 
-    name: Symbol
+    _name: Symbol
     over: Optional[SQLNode]
 
     def __init__(
         self, name: Union[str, Symbol], over: Optional[SQLNode] = None
     ) -> None:
         super().__init__()
-        self.name = S(name)
+        self._name = S(name)
         self.over = _cast_to_node_skip_none(over)
 
     def __getattr__(self, name: str) -> "Get":
         return self.__class__(name=S(name), over=self)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
-        return self.__class__(name=self.name, over=_rebase_node(self.over, pre))
+        return self.__class__(name=self._name, over=_rebase_node(self.over, pre))
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        path = [self.name]
+        path = [self._name]
         over = self.over
 
         while over is not None and isinstance(over, Get) and over not in ctx.vars_:
-            path.append(over.name)
+            path.append(over._name)
             over = over.over
         if over is not None and over in ctx.vars_:
             path.append(ctx.vars_[over])
@@ -567,8 +570,12 @@ class Lit(SQLNode):
 
     def __init__(self, val: Any) -> None:
         super().__init__()
+        assert isinstance(
+            val, LITERAL_TYPES
+        ), f"Unexpected object of type: {type(val)} being cast as a literal"
         self.val = val
 
+    @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
         val = to_doc(self.val)
         return f"Lit({val})"
@@ -737,15 +744,15 @@ class Sort(SQLNode):
 
 
 class Var(SQLNode, metaclass=ExtendAttrsFull):
-    name: Symbol
+    _name: Symbol
 
     def __init__(self, name: Union[str, Symbol]) -> None:
         super().__init__()
-        self.name = S(name)
+        self._name = S(name)
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        return f"Var.{self.name}"
+        return f"Var.{self._name}"
 
 
 class Where(TabularNode):
@@ -928,7 +935,12 @@ class F:
 
 
 @register_union_type(label)
-def _(node: Union[Agg, As, Fun, Get]) -> Symbol:
+def _(node: Union[Agg, Fun, Get]) -> Symbol:
+    return node._name
+
+
+@label.register
+def _(node: As) -> Symbol:
     return node.name
 
 

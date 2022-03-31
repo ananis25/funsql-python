@@ -3,8 +3,9 @@ This module hosts utilities imported across modules.
 """
 
 from typing import Callable, ClassVar, Union, TypeVar, Generic, get_type_hints
+import datetime
 
-__all__ = ["register_union_type", "Symbol", "S", "OrderedSet"]
+__all__ = ["register_union_type", "Symbol", "S", "OrderedSet", "LITERAL_TYPES"]
 
 
 # -----------------------------------------------------------
@@ -90,6 +91,17 @@ class OrderedSet(Generic[_T]):
     def __repr__(self):
         return repr(self._map)
 
+
+LITERAL_TYPES = (
+    int,
+    float,
+    str,
+    bool,
+    type(None),
+    datetime.date,
+    datetime.datetime,
+    Symbol,
+)
 
 # -----------------------------------------------------------
 # utility routines

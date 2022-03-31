@@ -105,7 +105,7 @@ def translates_to_repl_n_cols(
         counter[name] = counter.get(name, 0) + 1
         k = counter[name]
 
-        # TODO: this is a trouble site, until we implement equality for *all* SQLClause objects
+        # TODO: this is a trouble site, until we implement eq/hash for *all* SQLClause objects
         if k > 1 and (name, clause) in renames:
             # filters out duplicate columns
             name_p = renames[(name, clause)]
@@ -282,7 +282,7 @@ def translate_node(node: SQLNode, ctx: TranslateContext) -> Optional[SQLClause]:
 
 @translate_node.register
 def _(node: Agg, ctx: TranslateContext) -> SQLClause:
-    if str(node.name).upper() == "COUNT":
+    if str(node._name).upper() == "COUNT":
         args = translate(node.args, ctx) if len(node.args) > 0 else [OP(S("*"))]
         filter_ = translate(node.filter_, ctx)
         return AGG(S("COUNT"), *args, distinct=node.distinct, filter_=filter_)
@@ -290,7 +290,7 @@ def _(node: Agg, ctx: TranslateContext) -> SQLClause:
         args = translate(node.args, ctx)
         filter_ = translate(node.filter_, ctx)
         return AGG(
-            S(str(node.name).upper()),
+            S(str(node._name).upper()),
             *args,
             distinct=node.distinct,
             filter_=filter_,
@@ -326,7 +326,7 @@ _FUNC_REPLACE = {
 
 @translate_node.register
 def _(node: Fun, ctx: TranslateContext) -> SQLClause:
-    fn = str(node.name).upper()
+    fn = str(node._name).upper()
 
     if fn in ("NOT", "LIKE", "EXISTS", "=", "==", "!="):
         name = S(_FUNC_REPLACE.get(fn, fn))
@@ -412,10 +412,10 @@ def _(node: Sort, ctx: TranslateContext) -> SQLClause:
 
 @translate_node.register
 def _(node: Var, ctx: TranslateContext) -> SQLClause:
-    if node.name in ctx.vars_:
-        return ctx.vars_[node.name]
+    if node._name in ctx.vars_:
+        return ctx.vars_[node._name]
     else:
-        return VAR(node.name)
+        return VAR(node._name)
 
 
 # -----------------------------------------------------------
@@ -533,7 +533,7 @@ def _(node: As, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
 def _(node: Define, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     assert node.over is not None
     base = assemble(node.over, ctx)
-    if not any(isinstance(ref, Get) and ref.name in node.label_map for ref in refs):
+    if not any(isinstance(ref, Get) and ref._name in node.label_map for ref in refs):
         return base
 
     if not isinstance(base.clause, (SELECT, UNION)):
@@ -547,8 +547,8 @@ def _(node: Define, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     translates: list[tuple[SQLNode, SQLClause]] = []
     tr_cache: ALIAS_TO_CLAUSE = dict()
     for ref in refs:
-        if isinstance(ref, Get) and ref.over is None and ref.name in node.label_map:
-            name = ref.name
+        if isinstance(ref, Get) and ref.over is None and ref._name in node.label_map:
+            name = ref._name
             if name not in tr_cache:
                 _define = node.args[node.label_map[name]]
                 with ctx.substitute_vars_n_subs(subs=subs):
@@ -571,14 +571,16 @@ def _(node: FromNothing, refs: list[SQLNode], ctx: TranslateContext) -> Assembla
 def _(node: FromReference, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     cte_asmb = ctx.cte_map[node.over]
     asmb = cte_asmb.asmb.unwrap_repl()
-    clause = FROM(
-        over=ID(
-            name=cte_asmb.name,
-            over=ID(name=cte_asmb.schema) if cte_asmb.schema else None,
-        )
-    )
 
-    subs = asmb.get_make_subs(cte_asmb.name)
+    # TODO: the alias logic here is suspect, but without aliasing self-joins are
+    # ambiguous with CTE tables.
+    alias = ctx.allocate_alias(cte_asmb.name)
+
+    schema = None if cte_asmb.schema is None else ID(name=cte_asmb.schema)
+    table = ID(name=cte_asmb.name, over=schema)
+    clause = FROM(AS(name=alias, over=table))
+
+    subs = asmb.get_make_subs(alias)
     translates = [(ref, subs[ref]) for ref in refs]
     repl, cols = translates_to_repl_n_cols(translates)
     return Assemblage(clause, cols=cols, repl=repl)
@@ -589,9 +591,11 @@ def _(node: FromTable, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage
     seen: set[Symbol] = set()
     for ref in refs:
         assert (
-            isinstance(ref, Get) and ref.over is None and ref.name in node.table.columns
+            isinstance(ref, Get)
+            and ref.over is None
+            and ref._name in node.table.columns
         )
-        seen.add(ref.name)
+        seen.add(ref._name)
     alias = ctx.allocate_alias(node.table.name)
 
     schema = None if node.table.schema is None else ID(name=node.table.schema)
@@ -606,7 +610,7 @@ def _(node: FromTable, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            repl[ref] = ref.name
+            repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 
@@ -616,12 +620,12 @@ def _(node: FromValues, refs: list[SQLNode], ctx: TranslateContext) -> Assemblag
     column_set = set(columns)
     seen: set[Symbol] = set()
     for ref in refs:
-        assert isinstance(ref, Get) and ref.over is None and ref.name in column_set
-        seen.add(ref.name)
+        assert isinstance(ref, Get) and ref.over is None and ref._name in column_set
+        seen.add(ref._name)
 
     rows: list[tuple]
     column_aliases: list[Symbol]
-    # all/some/no columns are selected
+    # render the VALUES clause based on whether all/some/no columns are selected
     if len(seen) == len(columns):
         rows = node.source.data
         column_aliases = list(columns)
@@ -663,7 +667,7 @@ def _(node: FromValues, refs: list[SQLNode], ctx: TranslateContext) -> Assemblag
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            repl[ref] = ref.name
+            repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 
@@ -688,8 +692,8 @@ def _(node: Group, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     translates: list[tuple[SQLNode, SQLClause]] = []
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            assert ref.name in node.label_map
-            translates.append((ref, by[node.label_map[ref.name]]))
+            assert ref._name in node.label_map
+            translates.append((ref, by[node.label_map[ref._name]]))
         elif isinstance(ref, Agg) and ref.over is None:
             with ctx.substitute_vars_n_subs(subs=subs):
                 translates.append((ref, translate(ref, ctx)))
@@ -967,7 +971,7 @@ def _(node: Select, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         assert isinstance(ref, Get) and ref.over is None
-        repl[ref] = ref.name
+        repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 

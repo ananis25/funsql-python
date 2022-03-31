@@ -509,7 +509,7 @@ class JOIN(SQLClause):
         elif self.right:
             ctx.write("RIGHT JOIN ")
         else:
-            ctx.write("JOIN ")
+            ctx.write("INNER JOIN ")  # default JOIN type
 
         if self.lateral:
             ctx.write("LATERAL ")
