@@ -572,8 +572,8 @@ def _(node: FromReference, refs: list[SQLNode], ctx: TranslateContext) -> Assemb
     cte_asmb = ctx.cte_map[node.over]
     asmb = cte_asmb.asmb.unwrap_repl()
 
-    # TODO: the alias logic here is suspect, but without aliasing self-joins are
-    # ambiguous with CTE tables.
+    # TODO: the alias logic here is suspect, but without aliasing CTE tables, things
+    # like self-joins will be ambiguous.
     alias = ctx.allocate_alias(cte_asmb.name)
 
     schema = None if cte_asmb.schema is None else ID(name=cte_asmb.schema)

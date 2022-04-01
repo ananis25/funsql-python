@@ -19,27 +19,6 @@ def dialect_default() -> SQLDialect:
     return dialect_sqlite()
 
 
-def dialect_mysql() -> SQLDialect:
-    return SQLDialect(
-        name="mysql",
-        var_style=VarStyle.POSITIONAL,
-        var_prefix="?",
-        id_quotes=("`", "`"),
-        limit_style=LimitStyle.MYSQL,
-        values_row_constructor="ROW",
-        values_column_prefix="column_",
-        values_column_index=0,
-    )
-
-
-def dialect_postgres() -> SQLDialect:
-    return SQLDialect(
-        name="postgresql",
-        var_style=VarStyle.NUMBERED,
-        var_prefix="$",
-    )
-
-
 def dialect_sqlite() -> SQLDialect:
     return SQLDialect(
         name="sqlite",
@@ -94,7 +73,9 @@ def render(
     catalog: Optional[SQLCatalog] = None,
 ) -> Union[SQLNode, SQLClause, SQLString]:
     """Render the SQL node expression to a SQLString object.
-    NOTE: calling the `render` method mutates the SQLNode object.
+
+    NOTE: calling the `render` method might mutate the SQLNode object. Work with
+    a fresh object on each call.
     """
     assert isinstance(node, SQLNode)
     if catalog is None:
@@ -120,4 +101,13 @@ def render(
 
     serialize_ctx = SerializationContext(dialect=catalog.dialect)
     serialize(output_clause, serialize_ctx)
+    return serialize_ctx.render()
+
+
+def render_clause(clause: SQLClause, dialect: SQLDialect) -> SQLString:
+    """Render the SQL clause to a SQLString object."""
+    assert isinstance(clause, SQLClause)
+    assert isinstance(dialect, SQLDialect)
+    serialize_ctx = SerializationContext(dialect=dialect)
+    serialize(clause, serialize_ctx)
     return serialize_ctx.render()

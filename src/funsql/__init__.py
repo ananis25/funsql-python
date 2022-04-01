@@ -1,6 +1,6 @@
 # constructing a query
-from funsql.nodedefs import *
-from funsql.nodes import (
+from .nodedefs import *  # type: ignore
+from .nodes import (
     SQLNode,
     TabularNode,
     ErrDuplicateLabel,
@@ -8,7 +8,7 @@ from funsql.nodes import (
     ErrType,
     ErrReference,
 )
-from funsql.clausedefs import (
+from .clausedefs import (
     Frame,
     FrameMode,
     FrameEdgeSide,
@@ -17,15 +17,13 @@ from funsql.clausedefs import (
     ValueOrder,
     NullsOrder,
 )
-from funsql.common import Symbol, S
+from .common import Symbol, S
 
 # compiling queries
-from funsql.render import (
+from .render import (
     RenderDepth,
     render,
+    render_clause,
     dialect_default,
-    dialect_mysql,
-    dialect_postgres,
-    dialect_sqlite,
 )
-from funsql.sqlcontext import SQLCatalog, SQLDialect, SQLTable
+from .sqlcontext import SQLCatalog, SQLDialect, SQLTable
