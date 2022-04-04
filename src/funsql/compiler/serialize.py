@@ -87,12 +87,38 @@ def _(data: bool, ctx: SerializationContext) -> None:
 
 @serialize.register
 def _(data: datetime.datetime, ctx: SerializationContext) -> None:
-    ctx.write(f"'{data.strftime('%Y-%m-%d %H:%M:%S')}'")
+    # TODO: Do we raise an exception when dealing with date/time values for the SQLite dialect?
+    ctx.write(f"TIMESTAMP '{data.isoformat()}'")
 
 
 @serialize.register
 def _(data: datetime.date, ctx: SerializationContext) -> None:
-    ctx.write(f"'{data.strftime('%Y-%m-%d')}'")
+    ctx.write(f"DATE '{data.strftime('%Y-%m-%d')}'")
+
+
+@serialize.register
+def _(data: datetime.time, ctx: SerializationContext) -> None:
+    """Python resolves time values to count of hours, mins, seconds and microseconds;
+    we serialize it to the resolution needed.
+    """
+    format_str = "%H:%M:%S" if data.microsecond == 0 else "%H:%M:%S.%f"
+    ctx.write(f"TIME '{data.strftime(format_str)}'")
+
+
+@serialize.register
+def _(data: datetime.timedelta, ctx: SerializationContext) -> None:
+    """Python resolves timedelta values to count of days, seconds, microseconds;
+    we serialize it to the resolution needed.
+    """
+    ctx.write(f"INTERVAL ")
+    if data.microseconds == 0:
+        if data.seconds == 0:
+            ctx.write(f"'{data.days}' DAY")
+        else:
+            seconds = data.days * 86400 + data.seconds
+            ctx.write(f"'{seconds}' SECOND")
+    else:
+        ctx.write(f"'{data.total_seconds():.6f}' SECOND")
 
 
 @serialize.register(type(None))

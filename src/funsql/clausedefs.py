@@ -625,6 +625,7 @@ class LIMIT(SQLClause):
             if self.limit is not None:
                 ctx.newline()
                 ctx.write("FETCH FIRST " if self.offset is None else "FETCH NEXT ")
+                ctx.write(f"{self.limit}")
                 ctx.write(" ROW" if self.limit == 1 else " ROWS")
                 ctx.write(" WITH TIES" if self.with_ties else " ONLY")
 
@@ -1232,7 +1233,7 @@ class VAR(SQLClause):
             if style == VarStyle.NAMED:
                 ctx.write(str(self.name))
             elif style == VarStyle.NUMBERED:
-                ctx.write(str(pos))
+                ctx.write(str(1 + pos))
 
 
 class WHERE(SQLClause):

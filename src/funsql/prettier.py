@@ -110,12 +110,22 @@ def _(val: Symbol) -> str:
 
 @to_doc.register
 def _(val: datetime.date) -> str:
-    return f"'{val.strftime('%Y-%m-%d')}'"
+    return f"DATE '{val.strftime('%Y-%m-%d')}'"
+
+
+@to_doc.register
+def _(val: datetime.time) -> str:
+    return f"TIME '{val.strftime('%H:%M:%S')}'"
 
 
 @to_doc.register
 def _(val: datetime.datetime) -> str:
-    return f"'{val.strftime('%Y-%m-%d %H:%M:%S')}'"
+    return f"TIMESTAMP '{val.isoformat()}'"
+
+
+@to_doc.register
+def _(val: datetime.timedelta) -> str:
+    return f"INTERVAL '{val.total_seconds()} SECONDS'"
 
 
 @to_doc.register

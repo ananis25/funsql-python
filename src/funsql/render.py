@@ -16,16 +16,14 @@ from .compiler.serialize import serialize, SerializationContext, SQLString
 
 
 def dialect_default() -> SQLDialect:
-    return dialect_sqlite()
+    return dialect_postgres()
 
 
-def dialect_sqlite() -> SQLDialect:
+def dialect_postgres() -> SQLDialect:
     return SQLDialect(
-        name="sqlite",
+        name="postgresql",
         var_style=VarStyle.NUMBERED,
-        var_prefix="?",
-        limit_style=LimitStyle.SQLITE,
-        has_as_columns=False,
+        var_prefix="$",
     )
 
 

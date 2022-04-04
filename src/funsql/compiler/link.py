@@ -29,7 +29,7 @@ __all__ = ["link_toplevel"]
 
 
 def gather(node: Union[None, SQLNode, list[SQLNode]], refs: list[SQLNode]) -> None:
-    """gather node references in the `refs` container; to pass to the parent"""
+    """gather node references in the `refs` container; to pass to the children nodes"""
     if isinstance(node, list):
         for n in node:
             assert isinstance(n, SQLNode), f"expected a SQLNode, got {type(n)}"

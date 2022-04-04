@@ -4,7 +4,7 @@ This module implements support for rendering to the common SQL variants.
 
 from ..sqlcontext import SQLDialect
 from ..clausedefs import VarStyle, LimitStyle
-from ..render import dialect_sqlite
+from ..render import dialect_postgres
 
 __all__ = ["dialect_mysql", "dialect_postgres", "dialect_sqlite"]
 
@@ -22,9 +22,12 @@ def dialect_mysql() -> SQLDialect:
     )
 
 
-def dialect_postgres() -> SQLDialect:
+def dialect_sqlite() -> SQLDialect:
     return SQLDialect(
-        name="postgresql",
+        name="sqlite",
         var_style=VarStyle.NUMBERED,
-        var_prefix="$",
+        var_prefix="?",
+        limit_style=LimitStyle.SQLITE,
+        has_as_columns=False,
+        has_datetime_types=False,
     )

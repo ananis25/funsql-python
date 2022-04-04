@@ -897,13 +897,26 @@ def Desc(nulls: Optional[NullsOrder] = None) -> Sort:
     return Sort(ValueOrder.DESC, nulls=nulls)
 
 
-def aka(node: Any, name: Union[str, Symbol]) -> SQLNode:
+def aka(*args, **kwargs) -> SQLNode:
     """Shorthand to create an alias for a node. To be used as:
 
     >>> aka(Get.person, S.person_id)
-    >>> aka(100, S.count)
+    >>> aka(100, "count")
+    >>> aka(count=100)
+    >>> aka(sum=Agg.sum(Get.population))
+    etc.
     """
-    return As(name=S(name), over=_cast_to_node(node))
+    assert (
+        len(args) == 0 or len(kwargs) == 0
+    ), "only one of args or kwargs should be passed"
+
+    if len(kwargs) == 1:
+        name, node_like = next(iter(kwargs.items()))
+    elif len(args) == 2:
+        node_like, name = args
+    else:
+        raise Exception("Invalid arguments passed to the aliasing routine `aka`")
+    return As(name=S(name), over=_cast_to_node(node_like))
 
 
 class F:

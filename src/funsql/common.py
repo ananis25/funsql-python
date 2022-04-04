@@ -99,8 +99,9 @@ LITERAL_TYPES = (
     bool,
     type(None),
     datetime.date,
+    datetime.time,
     datetime.datetime,
-    Symbol,
+    datetime.timedelta,
 )
 
 # -----------------------------------------------------------

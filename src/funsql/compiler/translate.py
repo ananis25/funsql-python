@@ -204,8 +204,9 @@ class TranslateContext:
         else:
             alias = node_or_alias
 
-        self.aliases[alias] = self.aliases.get(alias, 0) + 1
-        return S(f"{alias}_{self.aliases[alias]}")
+        n = self.aliases.get(alias, 0) + 1
+        self.aliases[alias] = n
+        return S(f"{alias}_{n}")
 
 
 def translate_toplevel(node: SQLNode, ctx: TranslateContext) -> SQLClause:
@@ -572,10 +573,7 @@ def _(node: FromReference, refs: list[SQLNode], ctx: TranslateContext) -> Assemb
     cte_asmb = ctx.cte_map[node.over]
     asmb = cte_asmb.asmb.unwrap_repl()
 
-    # TODO: the alias logic here is suspect, but without aliasing CTE tables, things
-    # like self-joins will be ambiguous.
-    alias = ctx.allocate_alias(cte_asmb.name)
-
+    alias = ctx.allocate_alias(node.name)
     schema = None if cte_asmb.schema is None else ID(name=cte_asmb.schema)
     table = ID(name=cte_asmb.name, over=schema)
     clause = FROM(AS(name=alias, over=table))
@@ -863,6 +861,7 @@ def _(node: Knot, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
 
     clause = FROM(over=ID(union_alias))
     subs = union.get_make_subs(union_alias)
+
     translates = [(ref, subs[ref]) for ref in refs]
     repl, cols = translates_to_repl_n_cols(translates)
     return Assemblage(clause, cols=cols, repl=repl)

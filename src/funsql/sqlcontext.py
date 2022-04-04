@@ -92,9 +92,9 @@ class SQLCatalog:
         name = "SQLCatalog"
         args = []
 
-        for name, table in self.tables.items():
-            args.append(assg_expr(str(name), to_doc(table, ctx)))
         args.append(assg_expr("dialect", str(self.dialect)))
+        for t_name, table in self.tables.items():
+            args.append(assg_expr(str(t_name), to_doc(table, ctx)))
         return call_expr(name, args)
 
     def get(self, key: Symbol) -> Optional[SQLTable]:
@@ -135,6 +135,7 @@ class SQLDialect:
     limit_style: LimitStyle = LimitStyle.ANSI
     has_recursive_annotation: bool = True
     has_as_columns: bool = True
+    has_datetime_types: bool = True
     values_row_constructor: Optional[str] = None
     values_column_prefix: Optional[str] = "column"  # TODO: what this do?
     values_column_index: int = 1
