@@ -10,7 +10,6 @@ The initial implementation is mostly a line by line port of the Julia library [F
 
 The `docs` directory has examples on how to use the library.
 * `using-nodes.ipynb` - shows how to use FunSQL to construct SQL queries. This is the user facing API. 
-* `development/using-clauses.ipynb` - FunSQL represents the SQL syntax using clause objects. This notebook shows how they get compiled to SQL strings. 
 
 The repository [funsql-examples](https://github.com/ananis25/funsql-examples) contains more examples of queries written using FunSQL. 
 
