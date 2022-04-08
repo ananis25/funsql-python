@@ -6,7 +6,7 @@
 
 `funsql` is a python library to write SQL queries in a way that is more composable. 
 
-The initial implementation is mostly a line by line port of the Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! While I try improve the documentation here, go over to the parent repository which motivates the project. 
+The initial implementation is mostly a direct port of the Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! While I try improve the documentation here, go over to the parent repository which motivates the project. 
 
 The `docs` directory has examples on how to use the library.
 * `using-nodes.ipynb` - shows how to use FunSQL to construct SQL queries. This is the user facing API. 

@@ -5,7 +5,7 @@ This module hosts utilities imported across modules.
 from typing import Callable, ClassVar, Union, TypeVar, Generic, get_type_hints
 import datetime
 
-__all__ = ["register_union_type", "Symbol", "S", "OrderedSet", "LITERAL_TYPES"]
+__all__ = ["register_union_type", "Symbol", "S", "OrderedSet", "LITERAL_TYPES", "LITERAL_TYPE_SIG"]
 
 
 # -----------------------------------------------------------
@@ -103,6 +103,18 @@ LITERAL_TYPES = (
     datetime.datetime,
     datetime.timedelta,
 )
+# unpacking list in a type object subscript only possible since python 3.11
+LITERAL_TYPE_SIG = Union[
+    int,
+    float,
+    str,
+    bool,
+    None,
+    datetime.date,
+    datetime.time,
+    datetime.datetime,
+    datetime.timedelta,
+]
 
 # -----------------------------------------------------------
 # utility routines

@@ -3,7 +3,7 @@ from enum import Enum
 from functools import lru_cache, singledispatch, wraps
 from typing import Any, Iterator, Optional, Type, Union, get_type_hints
 
-from .common import OrderedSet, S, Symbol
+from .common import OrderedSet, S, Symbol, LITERAL_TYPES, LITERAL_TYPE_SIG
 from .prettier import (
     Doc,
     QuoteContext,
@@ -18,6 +18,7 @@ from .sqlcontext import SQLTable
 
 __all__ = [
     "SQLNode",
+    "NODE_MATERIAL",
     "TabularNode",
     "ErrDuplicateLabel",
     "ErrIllFormed",
@@ -112,6 +113,10 @@ class TabularNode(SQLNode):
     def __init__(self) -> None:
         super().__init__()
 
+
+# For convenience, user facing SQLNode objects take python literal types as inputs
+# and cast them internally to SQLNodes. This represents the allowed types.
+NODE_MATERIAL = Union[SQLNode, LITERAL_TYPE_SIG]
 
 # -----------------------------------------------------------
 # pretty printing for SQLNode objects

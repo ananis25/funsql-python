@@ -76,7 +76,7 @@ def _(node: Define, ctx: AnnotateContext) -> BoxType:
     for f in node.label_map:
         fields[f] = ScalarType()
 
-    row = RowType(fields, t.row.group)
+    row = RowType(fields, group=t.row.group)
     return BoxType(t.name, row, t.handle_map)
 
 
@@ -185,7 +185,7 @@ def _(node: Partition, ctx: AnnotateContext) -> BoxType:
     used to group, only aggregate over them.
     """
     t = box_type(node.over)
-    row = RowType(t.row.fields, t.row)
+    row = RowType(t.row.fields, group=t.row)
     return BoxType(t.name, row, t.handle_map)
 
 

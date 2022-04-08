@@ -6,7 +6,7 @@ are replaced with or split into new nodes to make validating reference easier.
 
 from contextlib import contextmanager
 from functools import singledispatch
-from typing import Any, Optional, Mapping, TypeVar, Union, overload
+from typing import Any, Optional, Mapping, Union, overload
 
 from ..common import Symbol, register_union_type
 from ..nodedefs import *
