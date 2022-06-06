@@ -9,9 +9,10 @@
 The initial implementation is mostly a direct port of the Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! While I try improve the documentation here, go over to the parent repository which motivates the project. 
 
 The `docs` directory has examples on how to use the library.
-* `using-nodes.ipynb` - shows how to use FunSQL to construct SQL queries. This is the user facing API. 
+* `using-nodes.ipynb` - This is the user facing API, and shows how to use FunSQL to construct SQL queries. 
+* `using-clauses.ipynb` - FunSQL compiles the tree of SQL nodes to something close to the lexical structure of SQL, called clause objects. These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation. When projects like [Substrait](https://substrait.io/) are further along, might be a good idea to use that as a backend instead. 
 
-The repository [funsql-examples](https://github.com/ananis25/funsql-examples) contains more examples of queries written using FunSQL. 
+The `examples` directory has more examples of queries written using FunSQL. 
 
 ## Installation
 

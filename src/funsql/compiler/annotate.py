@@ -1,7 +1,7 @@
 """
-This module implements the annotation pass over the SQLNode expression. 
-Tabular nodes are boxed, `Get` references are reversed, and some nodes 
-are replaced with or split into new nodes to make validating reference easier. 
+This module implements the `annotation` pass over the SQLNode expression, which 
+rewrites the node graph to refactor some of the nodes (Get, Iterate, etc.) and 
+boxes all of the tabular nodes. 
 """
 
 from contextlib import contextmanager
@@ -53,16 +53,17 @@ def _rebase_node(curr: Optional[SQLNode], pre: SQLNode) -> SQLNode:
 
 
 class Box(TabularNode):
-    """Represents a SQL query node with SELECT args undetermined. A box
+    """
+    Represents a SQL query node with SELECT args undetermined. A box
     node wraps a regular SQLNode object, and is a container for information
     like, the column/table references available at the node which can be
     accessed downstream, pointers to other nodes referred by it, etc.
 
     Attributes:
-    - typ: encapsulated the types of references available at this node
-    - handle: Filled in during the `resolve` step, if the node is used as a handle
-    - refs: list of SQLNode objects referred by this node
-    - over: original SQLNode object boxed by this node
+        typ: encapsulates the list of references available at this node
+        handle: Filled in during the `resolve` step, if the node is used as a handle
+        refs: list of SQLNode objects referred by this node
+        over: original SQLNode object boxed by this node
     """
 
     typ: BoxType
@@ -114,7 +115,8 @@ def box_type(node: Union[None, SQLNode, Box]) -> BoxType:
 
 
 class NameBound(SQLNode):
-    """Represents a hierarchical Get node, obtained by inverting a regular
+    """
+    Represents a hierarchical Get node, obtained by inverting a regular
     Get node. The node `Get.a.b` is transformed as:
 
     `Get(over = Get(S.a), name = S.b) => NameBound(over = Get(S.b), name = S.a)`
@@ -708,7 +710,7 @@ def rebind(
 
     while isinstance(parent, Get):
         ctx.mark_origin(node_isolated)
-        node_isolated = NameBound(over=node_isolated, name=parent._name)
+        node_isolated = NameBound(over=node_isolated, name=parent.name)
         parent = parent.over
     if parent is not None:
         handle = ctx.make_handle(parent)
@@ -722,7 +724,7 @@ def _(node: Agg, ctx: AnnotateContext) -> SQLNode:
     # TODO: how critical is it to annotate these attributes in order? For each type of node?
     args_p = annotate_scalar(node.args, ctx)
     filter_p = annotate_scalar(node.filter_, ctx)
-    node_p = Agg(node._name, *args_p, distinct=node.distinct, filter_=filter_p)
+    node_p = Agg(node.name, *args_p, distinct=node.distinct, filter_=filter_p)
     return rebind(node.over, node_p, ctx)
 
 
@@ -792,12 +794,12 @@ def _(node: From, ctx: AnnotateContext) -> SQLNode:
 def _(node: Fun, ctx: AnnotateContext) -> SQLNode:
     """Annotate all the arguments to the function node"""
     args_p = annotate_scalar(node.args, ctx)
-    return Fun(node._name, *args_p)
+    return Fun(node.name, *args_p)
 
 
 @annotate_node_scalar.register
 def _(node: Get, ctx: AnnotateContext) -> SQLNode:
-    return rebind(node.over, Get(name=node._name), ctx)
+    return rebind(node.over, Get(name=node.name), ctx)
 
 
 @annotate_node.register

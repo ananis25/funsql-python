@@ -64,6 +64,14 @@ __all__ = [
 # utility functions local to this module
 # -----------------------------------------------------------
 
+RESERVED_WORDS = {
+    "name",
+    "over",
+    "args",
+    "filter_",
+    "distinct",
+}
+
 
 class ExtendAttrs(type):
     """
@@ -76,9 +84,9 @@ class ExtendAttrs(type):
     """
 
     def __getattr__(cls, key: str) -> Callable:
-        if key.startswith("_"):
+        if key in RESERVED_WORDS:
             raise AttributeError(
-                "fluent syntax isn't supported for strings starting with an underscore"
+                "fluent syntax isn't supported for reserved words, use the call expression syntax instead"
             )
         return partial(cls, key)
 
@@ -89,10 +97,10 @@ class ExtendAttrsFull(type):
     `Get` and `Var` classes.
     """
 
-    def __getattr__(cls, key: str) -> Callable:
-        if key.startswith("_"):
+    def __getattr__(cls, key: str) -> Any:
+        if key in RESERVED_WORDS:
             raise AttributeError(
-                "fluent syntax isn't supported for strings starting with an underscore"
+                "fluent syntax isn't supported for reserved words, use the call expression syntax instead"
             )
         return cls(key)
 
@@ -164,7 +172,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
         )
     """
 
-    _name: Symbol
+    name: Symbol
     args: list[SQLNode]
     distinct: bool
     filter_: Optional[SQLNode]
@@ -179,7 +187,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
-        self._name = S(name)
+        self.name = S(name)
         self.args = [_cast_to_node(arg) for arg in args]
         self.distinct = distinct
         self.filter_ = _cast_to_node_skip_none(filter_)
@@ -187,7 +195,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
         return self.__class__(
-            self._name,
+            self.name,
             *self.args,
             distinct=self.distinct,
             filter_=self.filter_,
@@ -199,7 +207,7 @@ class Agg(SQLNode, metaclass=ExtendAttrs):
         name = "Agg"
         args = []
 
-        _name_str = str(self._name)
+        _name_str = str(self.name)
         if _name_str.isalpha():
             name = f"Agg.{_name_str}"  # Agg.Count
         else:
@@ -566,12 +574,12 @@ class Fun(SQLNode, metaclass=ExtendAttrs):
     ```
     """
 
-    _name: Symbol
+    name: Symbol
     args: list[SQLNode]
 
     def __init__(self, name: Union[str, Symbol], *args: NODE_MATERIAL) -> None:
         super().__init__()
-        self._name = S(name)
+        self.name = S(name)
         self.args = [_cast_to_node(arg) for arg in args]
 
     @check_repr_context
@@ -579,7 +587,7 @@ class Fun(SQLNode, metaclass=ExtendAttrs):
         name = "Fun"
         args = []
 
-        _name_str = str(self._name)
+        _name_str = str(self.name)
         if _name_str.isalpha():
             name = f"Fun.{_name_str}"  # Fun.exists
         else:
@@ -617,33 +625,33 @@ class Get(SQLNode, metaclass=ExtendAttrsFull):
         )
 
     # dereferencing a wrapped column
-    >>> q = From(Users) >> As("A") >> As("B") >> As("C") >> Select(Get.A.B.C.name)
+    >>> q = From(Users) >> As("A") >> As("B") >> As("C") >> Select(Get.C.B.A.name)
     ```
     """
 
-    _name: Symbol
+    name: Symbol
     over: Optional[SQLNode]
 
     def __init__(
         self, name: Union[str, Symbol], over: Optional[SQLNode] = None
     ) -> None:
         super().__init__()
-        self._name = S(name)
+        self.name = S(name)
         self.over = _cast_to_node_skip_none(over)
 
     def __getattr__(self, name: str) -> "Get":
         return self.__class__(name=S(name), over=self)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
-        return self.__class__(name=self._name, over=_rebase_node(self.over, pre))
+        return self.__class__(name=self.name, over=_rebase_node(self.over, pre))
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        path = [self._name]
+        path = [self.name]
         over = self.over
 
         while over is not None and isinstance(over, Get) and over not in ctx.vars_:
-            path.append(over._name)
+            path.append(over.name)
             over = over.over
         if over is not None and over in ctx.vars_:
             path.append(ctx.vars_[over])
@@ -1249,15 +1257,15 @@ class Var(SQLNode, metaclass=ExtendAttrsFull):
     ```
     """
 
-    _name: Symbol
+    name: Symbol
 
     def __init__(self, name: Union[str, Symbol]) -> None:
         super().__init__()
-        self._name = S(name)
+        self.name = S(name)
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        return f"Var.{self._name}"
+        return f"Var.{self.name}"
 
 
 class Where(TabularNode):
@@ -1306,7 +1314,7 @@ class Where(TabularNode):
 
 class WithExternal(TabularNode):
     """
-    TODO: Undocumented. Should maybe be removed?
+    TODO: Undocumented. Might remove it?
     """
 
     args: list[SQLNode]
@@ -1472,6 +1480,13 @@ def eq(left: SQLNode, right: SQLNode) -> SQLNode:
     return Fun("=", left, right)
 
 
+def LeftJoin(
+    joinee: SQLNode, on: NODE_MATERIAL, over: Optional[SQLNode] = None
+) -> "Join":
+    """Shorthand to create a left join node"""
+    return Join(joinee=joinee, on=on, left=True, over=over)
+
+
 class F:
     """Shorthand to pass arguments to window frame objects"""
 
@@ -1502,7 +1517,7 @@ class F:
 
 @register_union_type(label)
 def _(node: Union[Agg, Fun, Get]) -> Symbol:
-    return node._name
+    return node.name
 
 
 @label.register

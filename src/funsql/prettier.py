@@ -1,10 +1,7 @@
 """
-This module implements a `Printer` object to print the FunSQL query 
-structure, since they can get long and unwieldy. Adapted from:
-* https://github.com/dtolnay/prettyplease/
-* https://github.com/stevej2608/oppen-pretty-printer
-
-both of which implement the algorithm first implemented by Derek C. Oppen. 
+This module implements primitives to render FunSQL objects into a stream 
+of tokens for pretty printing. The pretty printing algorithm used is the 
+one first implemented by Derek C. Oppen. 
 """
 
 

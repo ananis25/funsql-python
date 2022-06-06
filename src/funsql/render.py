@@ -33,9 +33,11 @@ def dialect_postgres() -> SQLDialect:
 
 
 class RenderDepth(Enum):
-    """Ordered enumeration to control the compiler output.
+    """
+    FunSQL compiles the specified query node structure to a SQL string in multiple passes.
+    RenderDepth specifies the number of passes executed, to help with debugging.
 
-    Reference: https://docs.python.org/3/library/enum.html#orderedenum
+    Implementation of the Ordered enumeration is copied from the [reference](https://docs.python.org/3/library/enum.html#orderedenum)
     """
 
     ANNOTATE = 1
@@ -70,9 +72,19 @@ def render(
     depth: RenderDepth = RenderDepth.SERIALIZE,
     catalog: Optional[SQLCatalog] = None,
 ) -> Union[SQLNode, SQLClause, SQLString]:
-    """Render the SQL node expression to a SQLString object.
+    """
+    Render the SQL node expression to a SQLString object.
 
-    NOTE: calling the `render` method might mutate the SQLNode object. Work with
+    Args:
+        node: the SQL node to render.
+        depth: num of compiler passes to run
+        catalog: the SQL catalog to use for resolving SQL table references, and query dialect
+
+    Returns:
+        SQLString If all the compiler passes are made, SQLClause object if translate pass has been made, 
+        else a SQLNode object. 
+
+    NOTE: calling the `render` method might mutate the SQLNode objects. Work with
     a fresh object on each call.
     """
     assert isinstance(node, SQLNode)
