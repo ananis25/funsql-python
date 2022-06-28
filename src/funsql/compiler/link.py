@@ -276,9 +276,7 @@ def _(node: Group, refs: list[SQLNode], ctx: AnnotateContext) -> None:
 
 
 @register_union_type(link)
-def _(
-    node: Union[Limit, With, WithExternal], refs: list[SQLNode], ctx: AnnotateContext
-) -> None:
+def _(node: Union[Limit, With], refs: list[SQLNode], ctx: AnnotateContext) -> None:
     box = check_box(node.over)
     box.refs.extend(refs)
 

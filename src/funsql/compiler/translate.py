@@ -1036,20 +1036,3 @@ def _(node: With, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
             asmb, name=alias, materialized=node.materialized
         )
     return assemble(node.over, ctx)
-
-
-@assemble.register
-def _(node: WithExternal, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
-    for arg in node.args:
-        asmb = assemble(arg, ctx)
-        assert isinstance(arg, Box)
-        table_name = arg.typ.name
-        table_cols = [c for c in asmb.cols]
-        if len(table_cols) == 0:
-            table_cols.append(S("_"))
-
-        table = SQLTable(name=table_name, schema=node.schema, columns=table_cols)
-        if node.handler is not None:
-            node.handler(table, asmb.get_complete_select())
-        ctx.cte_map[arg] = CTEAssemblage(asmb, name=table.name, external=True)
-    return assemble(node.over, ctx)

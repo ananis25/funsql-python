@@ -913,19 +913,3 @@ def _(node: With, ctx: AnnotateContext) -> SQLNode:
     return With(
         *args_p, materialized=node.materialized, label_map=node.label_map, over=over_p
     )
-
-
-@annotate_node.register
-def _(node: WithExternal, ctx: AnnotateContext) -> SQLNode:
-    args_p = annotate(node.args, ctx)
-    more_ctes = {name: args_p[val] for name, val in node.label_map.items()}
-    with ctx.extend_cte_nodes(more_ctes):
-        over_p = annotate(node.over, ctx)
-
-    return WithExternal(
-        *args_p,
-        schema=node.schema,
-        handler=node.handler,
-        label_map=node.label_map,
-        over=over_p,
-    )

@@ -133,7 +133,7 @@ def _(node: Group, ctx: AnnotateContext) -> BoxType:
 
 @register_union_type(resolve)
 def _(
-    node: Union[IntBind, Limit, Order, Where, With, WithExternal], ctx: AnnotateContext
+    node: Union[IntBind, Limit, Order, Where, With], ctx: AnnotateContext
 ) -> BoxType:
     """The references available at the parent node can be used here too."""
     return box_type(node.over)

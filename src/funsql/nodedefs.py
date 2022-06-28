@@ -57,7 +57,6 @@ __all__ = [
     "Var",
     "Where",
     "With",
-    "WithExternal",
     "Asc",
     "Desc",
     "ValuesTable",
@@ -1319,64 +1318,6 @@ class Where(TabularNode):
         return ex
 
 
-class WithExternal(TabularNode):
-    """
-    TODO: Undocumented. Might remove it?
-    """
-
-    args: list[SQLNode]
-    schema: Optional[Symbol]
-    handler: Callable[[SQLTable, SQLClause], None]
-    label_map: dict[Symbol, int]
-    over: Optional[SQLNode]
-
-    def __init__(
-        self,
-        *args: SQLNode,
-        schema: Optional[Symbol] = None,
-        handler: Any = None,
-        label_map: Optional[dict[Symbol, int]] = None,
-        over: Optional[SQLNode] = None,
-    ) -> None:
-        super().__init__()
-        self.args = [_cast_to_node(arg) for arg in args]
-        self.schema = schema
-        self.handler = handler
-        self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.args)
-        )
-
-    def rebase(self, pre: SQLNode) -> "SQLNode":
-        # NOTE: hmm, not passing over label_map
-        return self.__class__(
-            *self.args,
-            schema=self.schema,
-            handler=self.handler,
-            over=_rebase_node(self.over, pre),
-        )
-
-    @check_repr_context
-    def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        name = "WithExternal"
-        args = []
-
-        if len(self.args) == 0:
-            args.append(assg_expr("args", to_doc("[]")))
-        else:
-            for a in self.args:
-                args.append(to_doc(a, ctx))
-        if self.schema is not None:
-            args.append(assg_expr("schema", str(self.schema)))
-        if self.handler is not None:
-            args.append(assg_expr("handler", self.handler.__name__))
-
-        ex = call_expr(name, args)
-        if self.over is not None:
-            ex = pipe_expr(to_doc(self.over, ctx), ex)
-        return ex
-
-
 class With(TabularNode):
     """
     `With` node is used to create a CTE(common table expression). For larger queries,
@@ -1564,5 +1505,5 @@ def _(node: Union[Bind, Define, Group, Iterate, Join, Limit, Order]) -> Symbol:
 
 
 @register_union_type(label)
-def _(node: Union[Partition, Select, Sort, Var, Where, With, WithExternal]) -> Symbol:
+def _(node: Union[Partition, Select, Sort, Var, Where, With]) -> Symbol:
     return label(node.over)
