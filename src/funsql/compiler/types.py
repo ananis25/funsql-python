@@ -5,81 +5,42 @@ names and types of all references _available_ at a node; which it can
 provide to the nodes downstream. 
 """
 
+from enum import Enum
 from typing import Optional, Union, ClassVar, overload
 
 from ..common import S, Symbol
 from ..prettier import Doc, QuoteContext, call_expr, assg_expr, annotate_expr, to_doc
 
 
-class SQLType:
-    pass
+SQLType = Union["UnitType", "RowType", "BoxType"]
 
 
-class EmptyType(SQLType):
-    """Placeholder type assigned to a reference while we deduce it."""
-
-    _instance: ClassVar[Optional["EmptyType"]] = None
-
-    def __new__(cls):
-        """This could be abstracted out, but I don't know how to get it past pylance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+class UnitType(Enum):
+    Empty = 1  # placeholder type assigned to a reference while we deduce it
+    Scalar = 2  # regular type assigned to a column reference
+    Ambiguous = 3  # type assigned to references we are unsure about
 
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        return "EmptyType()"
+        return f"{self.name}Type()"
 
 
-class ScalarType(SQLType):
-    """The regular type assigned to a column reference"""
-
-    _instance: ClassVar[Optional["ScalarType"]] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        return "ScalarType()"
+FieldTypeMap = dict["Symbol", SQLType]
+HandleTypeMap = dict[int, SQLType]
 
 
-class AmbiguousType(SQLType):
-    """Type assigned to references we are unsure about, like when the query
-    is constructed incorrectly.
-    """
-
-    _instance: ClassVar[Optional["AmbiguousType"]] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def pretty_repr(self, ctx: QuoteContext) -> "Doc":
-        return "AmbiguousType()"
-
-
-# container mapping available references at a tabular node to their types
-FieldTypeMap = dict["Symbol", Union["ScalarType", "RowType", "AmbiguousType"]]
-# type assigned to a container for references you can aggregate over, at a Group node
-GroupType = Union["EmptyType", "RowType", "AmbiguousType"]
-HandleTypeMap = dict[int, Union["RowType", "AmbiguousType"]]
-
-
-class RowType(SQLType):
+class RowType:
     """Container for a set of fields mapped to their corresponding types, say
     the column references available at a tabular node.
     """
 
     fields: "FieldTypeMap"
-    group: "GroupType"
+    group: SQLType
 
     def __init__(
-        self, fields: Optional[FieldTypeMap] = None, group: Optional[GroupType] = None
+        self, fields: Optional[FieldTypeMap] = None, group: Optional[SQLType] = None
     ) -> None:
         self.fields = fields if fields is not None else dict()
-        self.group = group if group is not None else EmptyType()
+        self.group = group if group is not None else UnitType.Empty
 
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
         name = "RowType"
@@ -87,20 +48,18 @@ class RowType(SQLType):
 
         for field, val in self.fields.items():
             args.append(annotate_expr(str(field), to_doc(val)))
-        if not isinstance(self.group, EmptyType):
+        if not self.group == UnitType.Empty:
             args.append(assg_expr("group", to_doc(self.group)))
         return call_expr(name, args)
 
 
-class BoxType(SQLType):
+class BoxType:
     """Type assigned to a Box node (wrapping a tabular node). It tracks the set of
     column references available at the tabular node, and handles.
-
-    TODO: what are handles?
     """
 
     name: Symbol
-    row: "RowType"
+    row: RowType
     handle_map: HandleTypeMap
 
     def __init__(
@@ -117,31 +76,12 @@ class BoxType(SQLType):
         args.append(to_doc(self.name))
         for field, val in self.row.fields.items():
             args.append(annotate_expr(str(field), to_doc(val, ctx)))
-        if not isinstance(self.row.group, EmptyType):
+        if not self.row.group == UnitType.Empty:
             args.append(assg_expr("group", to_doc(self.row.group, ctx)))
         for h in sorted(self.handle_map.keys()):
             args.append(annotate_expr(str(h), to_doc(self.handle_map[h], ctx)))
 
         return call_expr(name, args)
-
-    @classmethod
-    def from_fields(
-        cls,
-        name: Symbol,
-        fields: Union["FieldTypeMap", "HandleTypeMap"],
-        group: Optional["GroupType"] = None,
-    ) -> "BoxType":
-        if group is None:
-            group = EmptyType()
-
-        field_map = dict()
-        handle_map = dict()
-        for k, v in fields.items():
-            if isinstance(k, Symbol):
-                field_map[k] = v
-            elif isinstance(k, int):
-                handle_map[k] = v
-        return BoxType(name, RowType(field_map, group), handle_map)
 
     def add_handle(self, handle: int) -> "BoxType":
         # missing handle means a negative int input
@@ -156,79 +96,41 @@ class BoxType(SQLType):
 EMPTY_BOX = BoxType(S("_"), RowType())
 
 
-@overload
-def intersect(t1: AmbiguousType, t2: AmbiguousType) -> AmbiguousType:
-    ...
-
-
-@overload
-def intersect(t1: ScalarType, t2: ScalarType) -> ScalarType:
-    ...
-
-
-@overload
-def intersect(t1: RowType, t2: RowType) -> RowType:
-    ...
-
-
-@overload
-def intersect(t1: BoxType, t2: BoxType) -> BoxType:
-    ...
-
-
-@overload
-def intersect(t1: SQLType, t2: SQLType) -> EmptyType:
-    ...
-
-
 def intersect(t1: SQLType, t2: SQLType) -> SQLType:
     """Used to deduce the references available at an Append node.
 
     The union of multiple tables results in a single table, so you'd expect
     only the references available in each of them; so an `intersect` operation.
     """
-    if isinstance(t1, AmbiguousType) or isinstance(t2, AmbiguousType):
-        return AmbiguousType()
-
-    elif isinstance(t1, ScalarType) and isinstance(t2, ScalarType):
-        return ScalarType()
+    if t1 == UnitType.Ambiguous and t2 == UnitType.Ambiguous:
+        return UnitType.Ambiguous
+    elif t1 == UnitType.Scalar and t2 == UnitType.Scalar:
+        return UnitType.Scalar
 
     elif isinstance(t1, RowType) and isinstance(t2, RowType):
         if t1 == t2:
             return t1
-        fields: FieldTypeMap = dict()
-        for field in t1.fields.keys():
-            if field in t2.fields:
-                t = intersect(t1.fields[field], t2.fields[field])
-                if not isinstance(t, EmptyType):
-                    fields[field] = t
+        common_fields: FieldTypeMap = dict()
+        for field in set(t1.fields).intersection(set(t2.fields)):
+            t = intersect(t1.fields[field], t2.fields[field])
+            if not t == UnitType.Empty:
+                common_fields[field] = t
         group = intersect(t1.group, t2.group)
-        return RowType(fields, group)
+        return RowType(common_fields, group)
 
     elif isinstance(t1, BoxType) and isinstance(t2, BoxType):
         if t1 == t2:
             return t1
-        new_handles: HandleTypeMap = dict()
-        for key in t1.handle_map:
-            if key in t2.handle_map:
-                t = intersect(t1.handle_map[key], t2.handle_map[key])
-                if not isinstance(t, EmptyType):
-                    new_handles[key] = t
+        common_handles: HandleTypeMap = dict()
+        for key in set(t1.handle_map).intersection(set(t2.handle_map)):
+            t = intersect(t1.handle_map[key], t2.handle_map[key])
+            if not t == UnitType.Empty:
+                common_handles[key] = t
         name = t1.name if t1.name == t2.name else S("union")
-        return BoxType(name, intersect(t1.row, t2.row), new_handles)
+        return BoxType(name, intersect(t1.row, t2.row), common_handles)  # type: ignore
 
     else:
-        return EmptyType()
-
-
-@overload
-def union(t1: RowType, t2: RowType) -> RowType:
-    ...
-
-
-@overload
-def union(t1: BoxType, t2: BoxType) -> BoxType:
-    ...
+        return UnitType.Empty
 
 
 def union(t1: SQLType, t2: SQLType) -> SQLType:
@@ -238,55 +140,56 @@ def union(t1: SQLType, t2: SQLType) -> SQLType:
     You'd expect the nodes downstream of a Join to access references on either
     of the two sides of the Join, so a `union` makes sense.
     """
-    if isinstance(t1, EmptyType) and isinstance(t2, EmptyType):
-        return EmptyType()
-
-    elif isinstance(t1, EmptyType) and not isinstance(t2, EmptyType):
+    if t1 == UnitType.Empty and t2 == UnitType.Empty:
+        return UnitType.Empty
+    elif t1 == UnitType.Empty and not t2 == UnitType.Empty:
         return t2
-    elif not isinstance(t1, EmptyType) and isinstance(t2, EmptyType):
+    elif not t1 == UnitType.Empty and t2 == UnitType.Empty:
         return t1
-
-    elif isinstance(t1, ScalarType) and isinstance(t2, ScalarType):
-        return ScalarType()
+    elif t1 == UnitType.Scalar and t2 == UnitType.Scalar:
+        return UnitType.Scalar
 
     elif isinstance(t1, RowType) and isinstance(t2, RowType):
-        fields = dict()
-        for ref, ref_typ_t1 in t1.fields.items():
-            if ref in t2.fields:
-                ref_typ_t2 = t2.fields[ref]
-                if isinstance(ref_typ_t1, RowType) and isinstance(ref_typ_t2, RowType):
-                    fields[ref] = union(ref_typ_t1, ref_typ_t2)
-                else:
-                    fields[ref] = AmbiguousType()
+        combined_fields: FieldTypeMap = dict()
+        t1_fields = set(t1.fields)
+        t2_fields = set(t2.fields)
+
+        for ref in t1_fields.intersection(t2_fields):
+            ref_typ_t1 = t1.fields[ref]
+            ref_typ_t2 = t2.fields[ref]
+            if isinstance(ref_typ_t1, RowType) and isinstance(ref_typ_t2, RowType):
+                combined_fields[ref] = union(ref_typ_t1, ref_typ_t2)
             else:
-                fields[ref] = ref_typ_t1
-        for ref, ref_typ_t2 in t2.fields.items():
-            if ref not in t1.fields:
-                fields[ref] = ref_typ_t2
+                combined_fields[ref] = UnitType.Ambiguous
+        for ref in t1_fields.difference(t2_fields):
+            combined_fields[ref] = t1.fields[ref]
+        for ref in t2_fields.difference(t1_fields):
+            combined_fields[ref] = t2.fields[ref]
 
         group = (
             t1.group
-            if isinstance(t2.group, EmptyType)
+            if t2.group == UnitType.Empty
             else t2.group
-            if isinstance(t1.group, EmptyType)
-            else AmbiguousType()
+            if t1.group == UnitType.Empty
+            else UnitType.Ambiguous
         )
-        return RowType(fields, group)
+        return RowType(combined_fields, group)
 
     elif isinstance(t1, BoxType) and isinstance(t2, BoxType):
-        handle_map = dict()
-        for field in t1.handle_map:
-            if field not in t2.handle_map:
-                handle_map[field] = t1.handle_map[field]
-            else:
-                handle_map[field] = AmbiguousType()
-        for field in t2.handle_map:
-            if field not in t1.handle_map:
-                handle_map[field] = t2.handle_map[field]
-        return BoxType(t1.name, union(t1.row, t2.row), handle_map)
+        combined_handles: HandleTypeMap = dict()
+        t1_handles = set(t1.handle_map)
+        t2_handles = set(t2.handle_map)
+
+        for field in t1_handles.intersection(t2_handles):
+            combined_handles[field] = UnitType.Ambiguous
+        for field in t1_handles.difference(t2_handles):
+            combined_handles[field] = t1.handle_map[field]
+        for field in t2_handles.difference(t1_handles):
+            combined_handles[field] = t2.handle_map[field]
+        return BoxType(t1.name, union(t1.row, t2.row), combined_handles)  # type: ignore
 
     else:
-        return AmbiguousType()
+        return UnitType.Ambiguous
 
 
 def is_subset(t1: SQLType, t2: SQLType) -> bool:

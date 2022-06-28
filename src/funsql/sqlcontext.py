@@ -120,9 +120,8 @@ class VarStyle(Enum):
 
 
 class LimitStyle(Enum):
-    ANSI = 1
-    SQLITE = 2
-    MYSQL = 3
+    REGULAR = 1
+    FETCH_FIRST_KIND = 2
 
 
 @dataclass(repr=False)
@@ -132,7 +131,7 @@ class SQLDialect:
     var_prefix: str = "?"
     id_quotes: tuple[str, str] = ('"', '"')
     has_bool_literals: bool = True
-    limit_style: LimitStyle = LimitStyle.ANSI
+    limit_style: LimitStyle = LimitStyle.REGULAR
     has_recursive_annotation: bool = True
     has_as_columns: bool = True
     has_datetime_types: bool = True

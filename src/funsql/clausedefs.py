@@ -600,15 +600,7 @@ class LIMIT(SQLClause):
         if self.offset is None and self.limit is None:
             return
 
-        if ctx.dialect.limit_style == LimitStyle.MYSQL:
-            ctx.newline()
-            ctx.write("LIMIT ")
-            if self.offset is not None:
-                ctx.write(f"{self.offset}, ")
-            ctx.write(
-                f"{self.limit}" if self.limit is not None else "18446744073709551615"
-            )
-        elif ctx.dialect.limit_style == LimitStyle.SQLITE:
+        if ctx.dialect.limit_style == LimitStyle.REGULAR:
             ctx.newline()
             ctx.write("LIMIT ")
             ctx.write(f"{self.limit}" if self.limit is not None else "-1")
@@ -617,6 +609,7 @@ class LIMIT(SQLClause):
                 ctx.write("OFFSET ")
                 ctx.write(f"{self.offset}")
         else:
+            # the FETCH FIRST N ROWS syntax
             if self.offset is not None:
                 ctx.newline()
                 ctx.write("OFFSET ")

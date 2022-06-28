@@ -20,13 +20,21 @@ __all__ = [
     "SQLNode",
     "NODE_MATERIAL",
     "TabularNode",
-    "ErrDuplicateLabel",
-    "ErrIllFormed",
-    "ErrType",
-    "ErrReference",
     "populate_label_map",
     "label",
     "check_repr_context",
+    "ErrDuplicateLabel",
+    "ErrIllFormed",
+    "ErrRefUndefinedHandle",
+    "ErrRefAmbiguousHandle",
+    "ErrRefUndefinedName",
+    "ErrRefAmbiguousName",
+    "ErrRefUnexpectedRowType",
+    "ErrRefUnexpectedScalarType",
+    "ErrRefUnexpectedAgg",
+    "ErrRefAmbiguousAgg",
+    "ErrRefUndefinedTable",
+    "ErrRefInvalidTable",
 ]
 
 
@@ -56,7 +64,7 @@ def populate_label_map(node: "SQLNode", args: list["SQLNode"]) -> dict[Symbol, i
     for i, arg in enumerate(args):
         name = label(arg)
         if name in label_map:
-            raise ErrDuplicateLabel(name, [arg, node])
+            raise ErrDuplicateLabel(name=name, path=[arg, node])
         label_map[name] = i
     return label_map
 
@@ -166,11 +174,11 @@ def get_node_refs(node_typ: Type[SQLNode]) -> tuple[tuple[str], tuple[str]]:
 
 
 def visit(node: SQLNode, visiting: set[SQLNode]) -> Iterator[SQLNode]:
+    """recursively visit attributes that are SQLNodes."""
     if node in visiting:
         return
     visiting.add(node)
 
-    # recursively visit attributes that are SQLNodes
     maybe_nodes, listof_nodes = get_node_refs(type(node))
     for attr in maybe_nodes:
         _value = getattr(node, attr)
@@ -274,104 +282,90 @@ def check_repr_context(repr_func):
 # -----------------------------------------------------------
 
 
-def add_error_path(buf: io.StringIO, path: list[SQLNode]) -> None:
-    if len(path) > 0:
-        path[0].highlight = True  # highlight the error site
-        buf.write(f"\n{path[-1]}")
-    buf.write("\n")
-
-
-class ErrDuplicateLabel(BaseException):
-    name: Symbol
-    path: list[SQLNode]
-
-    def __init__(
-        self, name: Union[str, Symbol], path: Optional[list[SQLNode]] = None
-    ) -> None:
-        self.name = S(name)
-        self.path = path if path is not None else []
-
-    def __str__(self) -> str:
-        buf = io.StringIO()
-        buf.write(f"FunSQL.ErrDuplicateLabel: {self.name} is used more than once in:\n")
-        add_error_path(buf, self.path)
-        return buf.getvalue()
-
-
-class ErrIllFormed(BaseException):
-    path: list[SQLNode]
-
-    def __init__(self, path: Optional[list[SQLNode]] = None) -> None:
-        self.path = path if path is not None else []
-
-    def __str__(self) -> str:
-        buf = io.StringIO()
-        buf.write(f"FunSQL.ErrIllFormed: ill formed query in:\n")
-        if len(self.path) > 0:
-            add_error_path(buf, self.path)
-        else:
-            buf.write("Top level node")
-        return buf.getvalue()
-
-
-class ErrType(Enum):
-    UNDEFINED_HANDLE = 1
-    AMBIGUOUS_HANDLE = 2
-    UNDEFINED_NAME = 3
-    AMBIGUOUS_NAME = 4
-    UNEXPECTED_ROW_TYPE = 5
-    UNEXPECTED_SCALAR_TYPE = 6
-    UNEXPECTED_AGG = 7
-    AMBIGUOUS_AGG = 8
-    UNDEFINED_TABLE_REF = 9
-    INVALID_TABLE_REF = 10
-
-
-class ErrReference(Exception):
-    """Errors raised when a column or table reference can't be resolved
-    successfully when rendering the node.
-    """
-
-    typ: ErrType
+class ErrFunSQL(BaseException):
     name: Optional[Symbol]
     path: list[SQLNode]
 
     def __init__(
         self,
-        typ: ErrType,
-        name: Optional[Symbol] = None,
+        name: Union[str, Symbol, None] = None,
         path: Optional[list[SQLNode]] = None,
     ) -> None:
-        super().__init__()
-        self.typ = typ
-        if name is not None:
-            self.name = S(name)
+        self.name = S(name) if name is not None else None
         self.path = path if path is not None else []
 
-    def __str__(self) -> str:
-        msg = ""
-        if self.typ == ErrType.UNDEFINED_HANDLE:
-            msg = "node bound reference failed to resolve"
-        elif self.typ == ErrType.AMBIGUOUS_HANDLE:
-            msg = "node bound reference is ambiguous"
-        elif self.typ == ErrType.UNDEFINED_NAME:
-            msg = "name: {} is undefined".format(self.name)
-        elif self.typ == ErrType.AMBIGUOUS_NAME:
-            msg = "name: {} is ambiguous".format(self.name)
-        elif self.typ == ErrType.UNEXPECTED_ROW_TYPE:
-            msg = "incomplete reference {}".format(self.name)
-        elif self.typ == ErrType.UNEXPECTED_SCALAR_TYPE:
-            msg = "unexpected reference after {}".format(self.name)
-        elif self.typ == ErrType.UNEXPECTED_AGG:
-            msg = "aggregate expression allowed only inside a Group or Partition"
-        elif self.typ == ErrType.AMBIGUOUS_AGG:
-            msg = "ambiguous aggregate expression"
-        elif self.typ == ErrType.UNDEFINED_TABLE_REF:
-            msg = "table reference {} is undefined".format(self.name)
-        elif self.typ == ErrType.INVALID_TABLE_REF:
-            msg = "table reference {} requires label using As".format(self.name)
+    def _custom_msg(self) -> str:
+        raise NotImplementedError("Custom message should be implemented in subclasses")
 
+    def __str__(self) -> str:
         buf = io.StringIO()
-        buf.write(f"FunSQL.ErrReference: {msg} in:\n")
-        add_error_path(buf, self.path)
+        buf.write(self._custom_msg() + "\n")
+
+        if len(self.path) > 0:
+            self.path[0].highlight = True  # highlight the error site
+            buf.write(f"\n{self.path[-1]}\n")
+        elif isinstance(self, ErrIllFormed):
+            buf.write("Top level node\n")
+        else:
+            buf.write("\n")
         return buf.getvalue()
+
+
+class ErrDuplicateLabel(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrDuplicateLabel: {self.name} is used more than once in:"
+
+
+class ErrIllFormed(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return "FunSQL.ErrIllFormed: ill-formed query in:"
+
+
+class ErrRefUndefinedHandle(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: node bound reference failed to resolve in:"
+
+
+class ErrRefAmbiguousHandle(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: node bound reference is ambiguous in:"
+
+
+class ErrRefUndefinedName(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: name {self.name} is undefined in:"
+
+
+class ErrRefAmbiguousName(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: name {self.name} is ambiguous in:"
+
+
+class ErrRefUnexpectedRowType(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: incomplete reference {self.name} in:"
+
+
+class ErrRefUnexpectedScalarType(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: unexpected reference after {self.name} in:"
+
+
+class ErrRefUnexpectedAgg(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: aggregate expression allowed only inside a Group or Partition in:"
+
+
+class ErrRefAmbiguousAgg(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: ambiguous aggregate expression in:"
+
+
+class ErrRefUndefinedTable(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: table reference {self.name} is undefined in:"
+
+
+class ErrRefInvalidTable(ErrFunSQL):
+    def _custom_msg(self) -> str:
+        return f"FunSQL.ErrReference: table reference {self.name} required label using `As` in:"

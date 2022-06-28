@@ -1,13 +1,6 @@
 # constructing a query
 from .nodedefs import *  # type: ignore
-from .nodes import (
-    SQLNode,
-    TabularNode,
-    ErrDuplicateLabel,
-    ErrIllFormed,
-    ErrType,
-    ErrReference,
-)
+from .nodes import SQLNode, TabularNode, ErrDuplicateLabel, ErrIllFormed
 from .clausedefs import (
     Frame,
     FrameMode,

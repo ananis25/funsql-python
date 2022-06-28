@@ -48,7 +48,7 @@ def gather(node: Union[None, SQLNode, list[SQLNode]], refs: list[SQLNode]) -> No
         pass
 
 
-def validate(t: Union[BoxType, RowType], ref: SQLNode, ctx: AnnotateContext) -> None:
+def validate(t: SQLType, ref: SQLNode, ctx: AnnotateContext) -> None:
     """validate references"""
     if isinstance(t, RowType):
         validate_rowtype(t, ref, ctx)
@@ -64,11 +64,12 @@ def validate_boxtype(t: BoxType, ref: SQLNode, ctx: AnnotateContext) -> None:
         over = ref.over  # TODO: must this be a Get node?
         if handle in t.handle_map:
             ht = t.handle_map[handle]
-            if isinstance(ht, AmbiguousType):
-                raise ErrReference(ErrType.AMBIGUOUS_HANDLE, path=ctx.get_path(ref))
-            validate(ht, over, ctx)
+            if ht == UnitType.Ambiguous:
+                raise ErrRefAmbiguousHandle(path=ctx.get_path(ref))
+            else:
+                validate(ht, over, ctx)
         else:
-            raise ErrReference(ErrType.UNDEFINED_HANDLE, path=ctx.get_path(ref))
+            raise ErrRefUndefinedHandle(path=ctx.get_path(ref))
 
     else:
         validate(t.row, ref, ctx)
@@ -78,56 +79,41 @@ def validate_rowtype(t: RowType, ref: SQLNode, ctx: AnnotateContext) -> None:
     """verify that the type container has an entry for the node referenced"""
     while isinstance(ref, NameBound):
         name = ref.name
-        ft = t.fields.get(name, EmptyType())
+        ft = t.fields.get(name, UnitType.Empty)
         if not isinstance(ft, RowType):
-            error_type = (
-                ErrType.UNDEFINED_NAME
-                if isinstance(ft, EmptyType)
-                else ErrType.UNEXPECTED_SCALAR_TYPE
-                if isinstance(ft, ScalarType)
-                else ErrType.AMBIGUOUS_NAME
-                if isinstance(ft, AmbiguousType)
-                else None
-            )
-            if error_type is None:
-                raise Exception(f"unexpected field type: {type(ft)}")
+            if ft == UnitType.Empty:
+                raise ErrRefUndefinedName(name=name, path=ctx.get_path(ref))
+            elif ft == UnitType.Scalar:
+                raise ErrRefUnexpectedScalarType(name=name, path=ctx.get_path(ref))
+            elif ft == UnitType.Ambiguous:
+                raise ErrRefAmbiguousName(name=name, path=ctx.get_path(ref))
             else:
-                raise ErrReference(error_type, name=name, path=ctx.get_path(ref))
+                raise Exception(f"unexpected field type: {type(ft)}")
         t = ft
         ref = ref.over
 
     if isinstance(ref, Get) and ref.over is None:
         name = ref.name
-        ft = t.fields.get(name, EmptyType())
-        if not isinstance(ft, ScalarType):
-            error_type = (
-                ErrType.UNDEFINED_NAME
-                if isinstance(ft, EmptyType)
-                else ErrType.UNEXPECTED_ROW_TYPE
-                if isinstance(ft, RowType)
-                else ErrType.AMBIGUOUS_NAME
-                if isinstance(ft, AmbiguousType)
-                else None
-            )
-            if error_type is None:
-                raise Exception(f"unexpected field type: {type(ft)}")
+        ft = t.fields.get(name, UnitType.Empty)
+        if not ft == UnitType.Scalar:
+            if ft == UnitType.Empty:
+                raise ErrRefUndefinedName(name=name, path=ctx.get_path(ref))
+            elif ft == UnitType.Ambiguous:
+                raise ErrRefAmbiguousName(name=name, path=ctx.get_path(ref))
+            elif isinstance(ft, RowType):
+                raise ErrRefUnexpectedRowType(name=name, path=ctx.get_path(ref))
             else:
-                raise ErrReference(error_type, name=name, path=ctx.get_path(ref))
+                raise Exception(f"unexpected field type: {type(ft)}")
 
     elif isinstance(ref, Agg) and ref.over is None:
         name = ref.name
         if not isinstance(t.group, RowType):
-            error_type = (
-                ErrType.UNEXPECTED_AGG
-                if isinstance(t.group, EmptyType)
-                else ErrType.AMBIGUOUS_AGG
-                if isinstance(t.group, AmbiguousType)
-                else None
-            )
-            if error_type is None:
-                raise Exception(f"unexpected group type: {type(t.group)}")
+            if t.group == UnitType.Empty:
+                raise ErrRefUnexpectedAgg(name=name, path=ctx.get_path(ref))
+            elif t.group == UnitType.Ambiguous:
+                raise ErrRefAmbiguousAgg(name=name, path=ctx.get_path(ref))
             else:
-                raise ErrReference(error_type, name=name, path=ctx.get_path(ref))
+                raise Exception(f"unexpected group type: {type(t.group)}")
 
     else:
         raise Exception(f"unexpected reference: {type(ref)}")
@@ -160,18 +146,18 @@ def route(lt: T, rt: T, ref: SQLNode) -> Literal[-1, 1]:
 
     if isinstance(lt, BoxType) and isinstance(rt, BoxType):
         if isinstance(ref, HandleBound):
-            typ = lt.handle_map.get(ref.handle, EmptyType())
-            return 1 if isinstance(typ, EmptyType) else -1
+            typ = lt.handle_map.get(ref.handle, UnitType.Empty)
+            return 1 if typ == UnitType.Empty else -1
         else:
             return route(lt.row, rt.row, ref)
 
     elif isinstance(lt, RowType) and isinstance(rt, RowType):
         while isinstance(ref, NameBound):
-            lt_p = lt.fields.get(ref.name, EmptyType())
-            if isinstance(lt_p, EmptyType):
+            lt_p = lt.fields.get(ref.name, UnitType.Empty)
+            if lt_p == UnitType.Empty:
                 return 1
-            rt_p = rt.fields.get(ref.name, EmptyType())
-            if isinstance(rt_p, EmptyType):
+            rt_p = rt.fields.get(ref.name, UnitType.Empty)
+            if rt_p == UnitType.Empty:
                 return -1
             assert isinstance(lt_p, RowType) and isinstance(rt_p, RowType)
             lt = lt_p
@@ -197,7 +183,7 @@ def route(lt: T, rt: T, ref: SQLNode) -> Literal[-1, 1]:
 def link_toplevel(ctx: AnnotateContext) -> None:
     root_box = ctx.boxes[-1]
     for f, ft in root_box.typ.row.fields.items():
-        if isinstance(ft, ScalarType):
+        if ft == UnitType.Scalar:
             root_box.refs.append(Get(f))
     link_boxes(list(reversed(ctx.boxes)), ctx)
 

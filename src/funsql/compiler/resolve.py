@@ -45,13 +45,14 @@ def _(node: Append, ctx: AnnotateContext) -> BoxType:
     t = box_type(node.over)
     for arg in node.args:
         t = intersect(t, box_type(arg))
+    assert isinstance(t, BoxType)
     return t
 
 
 @register_union_type(resolve)
 def _(node: Union[As, Knot], ctx: AnnotateContext) -> BoxType:
-    """As/Knot nodes add an indirection to the column references.
-    For ex, considering `From(Table[col1, col2]) >> As(table_alias)`,
+    """As/Knot nodes add an indirection to the column references. For ex, considering
+    the query: `From(Table[col1, col2]) >> As(table_alias)`,
     * From(...): has references to col1 and col2
     * As(...): has references to table_alias.col1 and table_alias.col2
     """
@@ -74,7 +75,7 @@ def _(node: Define, ctx: AnnotateContext) -> BoxType:
         if f not in node.label_map:
             fields[f] = ft
     for f in node.label_map:
-        fields[f] = ScalarType()
+        fields[f] = UnitType.Scalar
 
     row = RowType(fields, group=t.row.group)
     return BoxType(t.name, row, t.handle_map)
@@ -93,9 +94,7 @@ def _(node: FromReference, ctx: AnnotateContext) -> BoxType:
     t = box_type(node.over)
     ft = t.row.fields.get(node.name, None)
     if not isinstance(ft, RowType):
-        raise ErrReference(
-            ErrType.INVALID_TABLE_REF, name=node.name, path=ctx.get_path(node.over)
-        )
+        raise ErrRefInvalidTable(name=node.name, path=ctx.get_path(node.over))
     return BoxType(node.name, ft)
 
 
@@ -103,9 +102,8 @@ def _(node: FromReference, ctx: AnnotateContext) -> BoxType:
 def _(node: FromTable, ctx: AnnotateContext) -> BoxType:
     """Copy over all the column references from the source table."""
     fields: FieldTypeMap = dict()
-    x = ScalarType()
     for f in node.table.columns:
-        fields[f] = ScalarType()
+        fields[f] = UnitType.Scalar
     row = RowType(fields)
     return BoxType(node.table.name, row)
 
@@ -115,7 +113,7 @@ def _(node: FromValues, ctx: AnnotateContext) -> BoxType:
     """All columns provided by the table of values can be referenced."""
     fields: FieldTypeMap = dict()
     for f in node.source.columns:
-        fields[f] = ScalarType()
+        fields[f] = UnitType.Scalar
     row = RowType(fields)
     return BoxType(S("values"), row)
 
@@ -128,7 +126,7 @@ def _(node: Group, ctx: AnnotateContext) -> BoxType:
     t = box_type(node.over)
     fields: FieldTypeMap = dict()
     for f in node.label_map:
-        fields[f] = ScalarType()
+        fields[f] = UnitType.Scalar
     row = RowType(fields, group=t.row)
     return BoxType(t.name, row)
 
@@ -147,10 +145,11 @@ def resolve_knot(node: Box, ctx: AnnotateContext) -> None:
     iterator_typ = box_type(knot.iterator)
 
     # TODO: why are we doing a fixed point convergence here?
-    while not is_subset(node.typ.row, iterator_typ.row):
-        node.typ = intersect(node.typ, iterator_typ)
+    while not is_subset(node.typ.row, iterator_typ.row):  # type: ignore
+        node.typ = intersect(node.typ, iterator_typ)  # type: ignore
         resolve_boxes(knot.iterator_boxes, ctx)
         iterator_typ = box_type(knot.iterator)
+    assert isinstance(node.typ, BoxType)
     node.typ = node.typ.add_handle(node.handle)
 
 
@@ -171,7 +170,7 @@ def _(node: IntJoin, ctx: AnnotateContext) -> BoxType:
     """All references available on either side of the Join nodes are available."""
     lt = box_type(node.over)
     rt = box_type(node.joinee)
-    t = union(lt, rt)
+    t: BoxType = union(lt, rt)  # type: ignore
     node.typ = t
     return t
 
@@ -195,6 +194,6 @@ def _(node: Select, ctx: AnnotateContext) -> BoxType:
     t = box_type(node.over)
     fields: FieldTypeMap = dict()
     for f in node.label_map:
-        fields[f] = ScalarType()
+        fields[f] = UnitType.Scalar
     row = RowType(fields)
     return BoxType(t.name, row)

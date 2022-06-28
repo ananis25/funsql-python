@@ -780,9 +780,8 @@ def _(node: From, ctx: AnnotateContext) -> SQLNode:
                 return FromTable(table=table)
             else:
                 # couldn't resolve the symbol to a known node, sad
-                raise ErrReference(
-                    ErrType.UNDEFINED_TABLE_REF, name=source, path=ctx.get_path()
-                )
+                raise ErrRefUndefinedTable(name=source, path=ctx.get_path())
+
     elif isinstance(source, ValuesTable):
         # A `VALUES` query constructed in the query
         return FromValues(source)

@@ -15,7 +15,6 @@ def dialect_mysql() -> SQLDialect:
         var_style=VarStyle.POSITIONAL,
         var_prefix="?",
         id_quotes=("`", "`"),
-        limit_style=LimitStyle.MYSQL,
         values_row_constructor="ROW",
         values_column_prefix="column_",
         values_column_index=0,
@@ -27,7 +26,6 @@ def dialect_sqlite() -> SQLDialect:
         name="sqlite",
         var_style=VarStyle.NUMBERED,
         var_prefix="?",
-        limit_style=LimitStyle.SQLITE,
         has_as_columns=False,
         has_datetime_types=False,
     )

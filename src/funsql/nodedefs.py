@@ -2,6 +2,12 @@
 This module implements node objects which represent operations on tabular 
 datasets and can be combined together to assemble SQL queries. In the `render` 
 step, FunSQL compiles the assembled node tree into a SQL query. 
+
+NOTE [DEV]:
+1. Writing the __init__ method gets repetitive, but dataclasses don't help with star-arg inputs. 
+Also, we can't hint at what input types we allow, annotations only show what it gets coerced to. 
+2. Can abstract out the `rebase` and `pretty print` method but there are a lot of edge cases, so 
+lets just keep it simple. The compiler is the beast part of the code. 
 """
 
 from functools import partial
@@ -64,6 +70,7 @@ __all__ = [
 # utility functions local to this module
 # -----------------------------------------------------------
 
+# These are internal
 RESERVED_WORDS = {
     "name",
     "over",
@@ -136,8 +143,8 @@ def _cast_to_node_skip_none(node: Union[SQLNode, Any]) -> Optional[SQLNode]:
 
 class Agg(SQLNode, metaclass=ExtendAttrs):
     """
-    `Agg` is used to create an aggregate expression. It should be applied to the
-    output of nodes only of type:
+    `Agg` is used to create an aggregate expression over a column. It should be applied
+    only within the output of nodes of type:
     * `Group`: gets translated to a column aggregate for the `GROUP BY` operation
     * `Partition`: gets translated to a `WINDOW` function.
 
@@ -1003,7 +1010,7 @@ class Order(TabularNode):
             >> Select(Get.name, Get.date_of_birth)
         )
 
-    # sort error logs by their seveity level and reported time, critical ones first
+    # sort error logs by their severity level and reported time, critical ones first
     >>> q = (
             From(ErrorLogs)
             >> Order(Get.severity_level >> Desc(), Get.timestamp)
