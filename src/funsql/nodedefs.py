@@ -381,18 +381,11 @@ class Bind(SQLNode):
     over: Optional[SQLNode]
     label_map: dict[Symbol, int]
 
-    def __init__(
-        self,
-        *args: NODE_MATERIAL,
-        over: Optional[SQLNode] = None,
-        label_map: Optional[dict[Symbol, int]] = None,
-    ) -> None:
+    def __init__(self, *args: NODE_MATERIAL, over: Optional[SQLNode] = None) -> None:
         super().__init__()
         self.args = [_cast_to_node(arg) for arg in args]
         self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.args)
-        )
+        self.label_map = populate_label_map(self, self.args)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
         return self.__class__(*self.args, over=_rebase_node(self.over, pre))
@@ -441,23 +434,14 @@ class Define(TabularNode):
     over: Optional[SQLNode]
     label_map: dict[Symbol, int]
 
-    def __init__(
-        self,
-        *args: NODE_MATERIAL,
-        over: Optional[SQLNode] = None,
-        label_map: Optional[dict[Symbol, int]] = None,
-    ) -> None:
+    def __init__(self, *args: NODE_MATERIAL, over: Optional[SQLNode] = None) -> None:
         super().__init__()
         self.args = [_cast_to_node(arg) for arg in args]
         self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.args)
-        )
+        self.label_map = populate_label_map(self, self.args)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
-        return self.__class__(
-            *self.args, over=_rebase_node(self.over, pre), label_map=self.label_map
-        )
+        return self.__class__(*self.args, over=_rebase_node(self.over, pre))
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
@@ -703,23 +687,14 @@ class Group(TabularNode):
     over: Optional[SQLNode]
     label_map: dict[Symbol, int]
 
-    def __init__(
-        self,
-        *by: NODE_MATERIAL,
-        over: Optional[SQLNode] = None,
-        label_map: Optional[dict[Symbol, int]] = None,
-    ) -> None:
+    def __init__(self, *by: NODE_MATERIAL, over: Optional[SQLNode] = None) -> None:
         super().__init__()
         self.by = [_cast_to_node(arg) for arg in by]
         self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.by)
-        )
+        self.label_map = populate_label_map(self, self.by)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
-        return self.__class__(
-            *self.by, over=_rebase_node(self.over, pre), label_map=self.label_map
-        )
+        return self.__class__(*self.by, over=_rebase_node(self.over, pre))
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
@@ -1163,19 +1138,15 @@ class Select(TabularNode):
         self,
         *args: NODE_MATERIAL,
         over: Optional[SQLNode] = None,
-        label_map: Optional[dict[Symbol, int]] = None,
     ) -> None:
         super().__init__()
         self.args = [_cast_to_node(arg) for arg in args]
         self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.args)
-        )
+        self.label_map = populate_label_map(self, self.args)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
         return self.__class__(
             *self.args,
-            label_map=self.label_map,
             over=_rebase_node(self.over, pre),
         )
 
@@ -1349,16 +1320,13 @@ class With(TabularNode):
         self,
         *args: SQLNode,
         materialized: Optional[bool] = None,
-        label_map: Optional[dict[Symbol, int]] = None,
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
         self.args = [_cast_to_node(arg) for arg in args]
         self.materialized = materialized
         self.over = _cast_to_node_skip_none(over)
-        self.label_map = (
-            label_map if label_map is not None else populate_label_map(self, self.args)
-        )
+        self.label_map = populate_label_map(self, self.args)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
         return self.__class__(

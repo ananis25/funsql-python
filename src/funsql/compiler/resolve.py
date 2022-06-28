@@ -83,7 +83,7 @@ def _(node: Define, ctx: AnnotateContext) -> BoxType:
 
 @resolve.register
 def _(node: FromNothing, ctx: AnnotateContext) -> BoxType:
-    return EMPTY_BOX
+    return EMPTY_BOX_TYPE()
 
 
 @resolve.register
@@ -132,9 +132,7 @@ def _(node: Group, ctx: AnnotateContext) -> BoxType:
 
 
 @register_union_type(resolve)
-def _(
-    node: Union[IntBind, Limit, Order, Where, With], ctx: AnnotateContext
-) -> BoxType:
+def _(node: Union[IntBind, Limit, Order, Where, With], ctx: AnnotateContext) -> BoxType:
     """The references available at the parent node can be used here too."""
     return box_type(node.over)
 

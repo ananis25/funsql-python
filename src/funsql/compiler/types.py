@@ -69,6 +69,9 @@ class BoxType:
         self.row = row
         self.handle_map = handle_map if handle_map is not None else dict()
 
+    def is_empty(self) -> bool:
+        return self.name.data == "_" and len(self.row.fields) == 0
+
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":
         name = "BoxType"
         args = []
@@ -93,7 +96,7 @@ class BoxType:
             )
 
 
-EMPTY_BOX = BoxType(S("_"), RowType())
+EMPTY_BOX_TYPE = lambda: BoxType(S("_"), RowType())
 
 
 def intersect(t1: SQLType, t2: SQLType) -> SQLType:

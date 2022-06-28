@@ -73,13 +73,13 @@ class Box(TabularNode):
 
     def __init__(
         self,
-        typ: BoxType = EMPTY_BOX,
+        typ: Optional[BoxType] = None,
         handle: int = 0,
         refs: Optional[list[SQLNode]] = None,
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
-        self.typ = typ
+        self.typ = typ if typ is not None else BoxType(S("_"), RowType())
         self.handle = handle
         self.refs = refs if refs is not None else []
         self.over = over
@@ -95,7 +95,7 @@ class Box(TabularNode):
         if ctx.limit:
             args.append("...")
         else:
-            if self.typ != EMPTY_BOX:
+            if not self.typ.is_empty():
                 args.append(assg_expr("type", to_doc(self.typ)))
             if self.handle > 0:
                 args.append(assg_expr("handle", str(self.handle)))
@@ -111,7 +111,7 @@ class Box(TabularNode):
 
 
 def box_type(node: Union[None, SQLNode, Box]) -> BoxType:
-    return node.typ if isinstance(node, Box) else EMPTY_BOX
+    return node.typ if isinstance(node, Box) else EMPTY_BOX_TYPE()
 
 
 class NameBound(SQLNode):
@@ -259,16 +259,13 @@ class IntBind(SQLNode):
         self,
         args: list[SQLNode],
         owned: bool = False,
-        label_map: Optional[dict[Symbol, int]] = None,
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
         self.args = list(args)
         self.owned = owned
         self.over = over
-        self.label_map = (
-            populate_label_map(self, self.args) if label_map is None else label_map
-        )
+        self.label_map = populate_label_map(self, self.args)
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> Doc:
@@ -291,7 +288,6 @@ class IntBind(SQLNode):
         return IntBind(
             args=self.args,
             owned=self.owned,
-            label_map=self.label_map,
             over=_rebase_node(self.over, pre),
         )
 
@@ -404,7 +400,7 @@ class IntJoin(TabularNode):
         left: bool = False,
         right: bool = False,
         skip: bool = False,
-        typ: BoxType = EMPTY_BOX,
+        typ: Optional[BoxType] = None,
         lateral: Optional[list[SQLNode]] = None,
         over: Optional[SQLNode] = None,
     ):
@@ -414,7 +410,7 @@ class IntJoin(TabularNode):
         self.left = left
         self.right = right
         self.skip = skip
-        self.typ = typ
+        self.typ = typ if typ is not None else EMPTY_BOX_TYPE()
         self.lateral = [] if lateral is None else lateral
         self.over = over
 
@@ -473,7 +469,8 @@ def _(node: Union[IntIterate, Knot]) -> Symbol:
 
 @label.register
 def _(node: Box) -> Symbol:
-    return node.typ.name
+    # during the annotation phase, Box nodes are not resolved yet so defer to the parent
+    return label(node.over) if node.typ.is_empty() else node.typ.name
 
 
 # -----------------------------------------------------------
@@ -481,7 +478,7 @@ def _(node: Box) -> Symbol:
 # each node
 # -----------------------------------------------------------
 
-NEGATIVE_INT = -1000  # placeholder negative value as standin for missing index
+NEGATIVE_INT = -1000  # placeholder negative value as stand-in for missing index
 
 
 class PathMap:
@@ -752,14 +749,14 @@ def _(node: As, ctx: AnnotateContext) -> SQLNode:
 def _(node: Bind, ctx: AnnotateContext) -> SQLNode:
     over_p = annotate(node.over, ctx)
     args_p = annotate_scalar(node.args, ctx)
-    return IntBind(args=args_p, over=over_p, label_map=node.label_map)
+    return IntBind(args=args_p, over=over_p)
 
 
 @annotate_node.register
 def _(node: Define, ctx: AnnotateContext) -> SQLNode:
     over_p = annotate(node.over, ctx)
     args_p = annotate_scalar(node.args, ctx)
-    return Define(*args_p, over=over_p, label_map=node.label_map)
+    return Define(*args_p, over=over_p)
 
 
 @annotate_node.register
@@ -805,7 +802,7 @@ def _(node: Get, ctx: AnnotateContext) -> SQLNode:
 def _(node: Group, ctx: AnnotateContext) -> SQLNode:
     over_p = annotate(node.over, ctx)
     by_p = annotate_scalar(node.by, ctx)
-    return Group(*by_p, over=over_p, label_map=node.label_map)
+    return Group(*by_p, over=over_p)
 
 
 @annotate_node.register
@@ -882,7 +879,7 @@ def _(node: Select, ctx: AnnotateContext) -> SQLNode:
     """
     over_p = annotate(node.over, ctx)
     args_p = annotate_scalar(node.args, ctx)
-    return Select(*args_p, over=over_p, label_map=node.label_map)
+    return Select(*args_p, over=over_p)
 
 
 @annotate_node_scalar.register
@@ -910,6 +907,4 @@ def _(node: With, ctx: AnnotateContext) -> SQLNode:
     with ctx.extend_cte_nodes(more_ctes):
         over_p = annotate(node.over, ctx)
 
-    return With(
-        *args_p, materialized=node.materialized, label_map=node.label_map, over=over_p
-    )
+    return With(*args_p, materialized=node.materialized, over=over_p)

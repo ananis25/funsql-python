@@ -284,7 +284,7 @@ def _(node: Union[Limit, With], refs: list[SQLNode], ctx: AnnotateContext) -> No
 @link.register
 def _(node: IntBind, refs: list[SQLNode], ctx: AnnotateContext) -> None:
     if not node.owned:
-        gather_n_validate(node.args, [], EMPTY_BOX, ctx)
+        gather_n_validate(node.args, [], EMPTY_BOX_TYPE(), ctx)
     box = check_box(node.over)
     box.refs.extend(refs)
 
