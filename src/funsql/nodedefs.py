@@ -740,7 +740,6 @@ class Iterate(TabularNode):
                 >> As(S.factorial)
             )
         )
-
     ```
     """
 
@@ -1097,11 +1096,8 @@ class Partition(TabularNode):
         for a in self.by:
             args.append(to_doc(a, ctx))
         if len(self.order_by) > 0:
-            args.append(
-                assg_expr(
-                    "order_by", list_expr([to_doc(a, ctx) for a in self.order_by])
-                )
-            )
+            order_args = list_expr([to_doc(a, ctx) for a in self.order_by])
+            args.append(assg_expr("order_by", order_args))
         if self.frame is not None:
             args.append(assg_expr("frame", to_doc(self.frame)))
 
@@ -1145,10 +1141,7 @@ class Select(TabularNode):
         self.label_map = populate_label_map(self, self.args)
 
     def rebase(self, pre: SQLNode) -> "SQLNode":
-        return self.__class__(
-            *self.args,
-            over=_rebase_node(self.over, pre),
-        )
+        return self.__class__(*self.args, over=_rebase_node(self.over, pre))
 
     @check_repr_context
     def pretty_repr(self, ctx: QuoteContext) -> "Doc":

@@ -9,8 +9,18 @@ from enum import Enum
 from typing import Optional, Union, ClassVar, overload
 
 from ..common import S, Symbol
-from ..prettier import Doc, QuoteContext, call_expr, assg_expr, annotate_expr, to_doc
+from ..prettier import (
+    Doc,
+    QuoteContext,
+    call_expr,
+    assg_expr,
+    list_expr,
+    annotate_expr,
+    to_doc,
+)
 
+
+NEGATIVE_INT = -1000  # placeholder negative value as stand-in for missing index
 
 SQLType = Union["UnitType", "RowType", "BoxType"]
 
@@ -81,8 +91,12 @@ class BoxType:
             args.append(annotate_expr(str(field), to_doc(val, ctx)))
         if not self.row.group == UnitType.Empty:
             args.append(assg_expr("group", to_doc(self.row.group, ctx)))
-        for h in sorted(self.handle_map.keys()):
-            args.append(annotate_expr(str(h), to_doc(self.handle_map[h], ctx)))
+        if len(self.handle_map) > 0:
+            embedded_handles = list_expr([str(k) for k in self.handle_map])
+            args.append(assg_expr("handles_incl", embedded_handles))
+            # NOTE: printing the namespace of the handle nodes too makes output string too large
+            # for h in sorted(self.handle_map.keys()):
+            #     args.append(annotate_expr(str(h), to_doc(self.handle_map[h], ctx)))
 
         return call_expr(name, args)
 

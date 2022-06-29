@@ -2,12 +2,13 @@
 The `link` step resolves the columns provided by each tabular node. 
 
 * We start with the leaf `Box` node, which typically wraps a Select node, and add 
-the columns used in the output to its `refs` list. 
+the columns used in the output to its `refs` list, that is the list of references it 
+needs to provide. 
 * Then, we propagate upwards. 
-  * Each tabular node wrapped in a `Box` node reads the `refs` from its box, and 
-  assigns them to one of its parent `Box` nodes. For nodes like `Fun` or `Where` 
-  which might depend on other columns besides the ones selected, the other columns 
-  are similarly resolved. 
+  * Each tabular node wrapped in a `Box` node reads the `refs` that its box needs to provide. 
+  * It further adds the references it makes use of, for ex, arguments to a `Fun` node, or the 
+  condition in a `Where` node. 
+  * It assigns each of these references to one of its parent `Box` nodes. 
   * These box nodes further link references through their parent tabular nodes. 
 """
 
@@ -29,7 +30,9 @@ __all__ = ["link_toplevel"]
 
 
 def gather(node: Union[None, SQLNode, list[SQLNode]], refs: list[SQLNode]) -> None:
-    """gather node references in the `refs` container; to pass to the children nodes"""
+    """Gather node references in the `refs` container; that are used by the descendants of
+    the box node which owns the container.
+    """
     if isinstance(node, list):
         for n in node:
             assert isinstance(n, SQLNode), f"expected a SQLNode, got {type(n)}"
@@ -121,15 +124,18 @@ def validate_rowtype(t: RowType, ref: SQLNode, ctx: AnnotateContext) -> None:
 
 def gather_n_validate(
     node: Union[SQLNode, list[SQLNode]],
-    refs: list[SQLNode],
-    t: BoxType,
+    parent_refs: list[SQLNode],
+    parent_t: BoxType,
     ctx: AnnotateContext,
 ) -> None:
-    """gather node references and validate them"""
-    start_at = len(refs)
-    gather(node, refs)
-    for ref in refs[start_at:]:
-        validate(t, ref, ctx)
+    """Gather all the columns `node` requires and add them to the list of references
+    the parent box node needs to provide. Then, validate that they indeed exist in the
+    parent box namespace.
+    """
+    start_at = len(parent_refs)
+    gather(node, parent_refs)
+    for ref in parent_refs[start_at:]:
+        validate(parent_t, ref, ctx)
 
 
 T = TypeVar("T", BoxType, RowType)
@@ -181,10 +187,13 @@ def route(lt: T, rt: T, ref: SQLNode) -> Literal[-1, 1]:
 
 
 def link_toplevel(ctx: AnnotateContext) -> None:
-    root_box = ctx.boxes[-1]
-    for f, ft in root_box.typ.row.fields.items():
+    # `leaf_box` boxes the query node, that is the one corresponding to the query output
+    leaf_box = ctx.boxes[-1]
+    for f, ft in leaf_box.typ.row.fields.items():
         if ft == UnitType.Scalar:
-            root_box.refs.append(Get(f))
+            leaf_box.refs.append(Get(f))
+
+    # now, we start again from the `leaf_box`, and link references through all the box nodes
     link_boxes(list(reversed(ctx.boxes)), ctx)
 
 
@@ -316,8 +325,9 @@ def _(node: IntJoin, refs: list[SQLNode], ctx: AnnotateContext) -> None:
 
     gather_n_validate(node.joinee, node.lateral, lbox.typ, ctx)
     lbox.refs.extend(node.lateral)
+
     refs_p = []
-    gather_n_validate(node.on, refs_p, node.typ, ctx)
+    gather_n_validate(node.on, refs_p, node.box.typ, ctx)
     for ref in refs_p:
         turn = route(lbox.typ, rbox.typ, ref)
         if turn < 0:
@@ -382,7 +392,9 @@ def _(node: Partition, refs: list[SQLNode], ctx: AnnotateContext) -> None:
 
 @link.register
 def _(node: Select, refs: list[SQLNode], ctx: AnnotateContext) -> None:
-    """"""
+    """Select only passes through references that are present in its `args` attribute,
+    so the input `refs` don't need to be used.
+    """
     box = check_box(node.over)
     gather_n_validate(node.args, box.refs, box.typ, ctx)
 

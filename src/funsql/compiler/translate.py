@@ -1,8 +1,8 @@
 """
 This module implements the compiler pass to translate the tree of SQLnode 
-objects to a tree of SQLClause objects, which is almost like the actual 
-lexical structure of the SQL query. The SQLClause expression can then be 
-serialized into the SQL query string. 
+objects to a tree of SQLClause objects, which is represents the lexical 
+structure of the SQL query. The SQLClause expression can then be serialized 
+into the SQL query string. 
 """
 
 from contextlib import contextmanager
@@ -42,9 +42,7 @@ class Assemblage:
         self.repl = repl if repl is not None else dict()
 
     def get_complete_select(self) -> SQLClause:
-        """Construct the SELECT clause to a partially assembled query and return.
-        NOTE: the clause attribute is not modified in place.
-        """
+        """Construct the SELECT clause to a partially assembled query and return."""
         clause = self.clause
         if not isinstance(clause, (SELECT, UNION)):
             args = cols_to_select_args(self.cols)
@@ -77,8 +75,8 @@ class Assemblage:
 
 
 def cols_to_select_args(cols: ALIAS_TO_CLAUSE) -> list[SQLClause]:
-    """Pack the arguments to a SELECT clause; goes over all the columns
-    and assigns them aliases.
+    """Pack the arguments to a SELECT clause; this routine goes over all the
+    columns and assigns them aliases.
     """
     args = []
     for name, clause in cols.items():
@@ -143,7 +141,6 @@ class CTEAssemblage:
     name: Symbol
     schema: Optional[Symbol]
     materialized: Optional[bool]
-    external: bool
 
     def __init__(
         self,
@@ -151,13 +148,11 @@ class CTEAssemblage:
         name: Symbol,
         schema: Optional[Symbol] = None,
         materialized: Optional[bool] = None,
-        external: bool = False,
     ) -> None:
         self.asmb = asmb
         self.name = name
         self.schema = schema
         self.materialized = materialized
-        self.external = external
 
 
 class TranslateContext:
@@ -210,15 +205,16 @@ class TranslateContext:
 
 
 def translate_toplevel(node: SQLNode, ctx: TranslateContext) -> SQLClause:
-    """Translate the top-level SQLNode to produce a SQLClause representing the full query."""
+    """Translate the top-level SQLNode to produce a SQLClause representing the full query.
+    * The `translate` routine starts from the query node, and produces a SQLClause, while
+    any CTEs encountered are collected in the context.
+    * The CTEs are converted to a WITH clause, and prepended to the previous output.
+    """
     clause = translate(node, ctx)
     with_args: list[SQLClause] = []
 
-    # The CTE nodes encountered are collected in the translation `context`
+    # The CTE nodes encountered are collected in the translation context object
     for cte_asmb in ctx.cte_map.values():
-        if cte_asmb.external:
-            continue
-
         cols = [S(name) for name in cte_asmb.asmb.cols]
         if len(cols) == 0:
             cols.append(S("_"))
@@ -283,19 +279,13 @@ def translate_node(node: SQLNode, ctx: TranslateContext) -> Optional[SQLClause]:
 
 @translate_node.register
 def _(node: Agg, ctx: TranslateContext) -> SQLClause:
-    if str(node.name).upper() == "COUNT":
-        args = translate(node.args, ctx) if len(node.args) > 0 else [OP(S("*"))]
-        filter_ = translate(node.filter_, ctx)
-        return AGG(S("COUNT"), *args, distinct=node.distinct, filter_=filter_)
+    args: list[SQLClause] = []
+    if str(node.name).upper() == "COUNT" and len(node.args) == 0:
+        args = [OP(S("*"))]
     else:
         args = translate(node.args, ctx)
-        filter_ = translate(node.filter_, ctx)
-        return AGG(
-            S(str(node.name).upper()),
-            *args,
-            distinct=node.distinct,
-            filter_=filter_,
-        )
+    filter_ = translate(node.filter_, ctx)
+    return AGG(node.name, *args, distinct=node.distinct, filter_=filter_)
 
 
 @translate_node.register

@@ -1,9 +1,8 @@
 """
-This module implements the `resolve` pass over the annotated SQLNode 
-expression. We derive the names and types of references available at 
-all the nodes, by walking the node tree till the source. Only the table/column 
-references _available_ at a node can then be referred by the nodes 
-downstream of it. 
+This module implements the `resolve` pass over the annotated SQLNode expression. 
+We derive the names and types of references available at all the nodes, by walking 
+the query tree, _starting_ at the source. Only the table/column references _available_ 
+at a node can be referred by the nodes downstream of it. 
 """
 
 from typing import Any, Optional, Union
@@ -23,6 +22,9 @@ def resolve_toplevel(ctx: AnnotateContext) -> None:
 
 
 def resolve_boxes(boxes: list[Box], ctx: AnnotateContext) -> None:
+    """Resolve the types for all the nodes that box a tabular node. Note this starts from
+    the source nodes (From, CTEs, etc), and propagates the derived namespaces downwards.
+    """
     for box in boxes:
         if box.over is not None:
             handle_idx = ctx.get_handle(box.over)
@@ -138,11 +140,20 @@ def _(node: Union[IntBind, Limit, Order, Where, With], ctx: AnnotateContext) -> 
 
 
 def resolve_knot(node: Box, ctx: AnnotateContext) -> None:
+    """The namespace at Knot node is inferred in the following order.
+    * Base query namespace -> Knot namespace
+    * Knot namespace -> Iterator query namespace
+    * Knot namepsace -> IntIterate namespace
+
+    When the IntIterate node is encountered, Knot and Iterator namespaces have
+    been resolved once. However, the Knot node, being a union of the base query
+    and the iterator query, can only contain references common to both of them.
+    Hence, a redo is done.
+    """
     assert isinstance(node.over, Knot), "expected a Knot node as parent"
     knot = node.over
-    iterator_typ = box_type(knot.iterator)
 
-    # TODO: why are we doing a fixed point convergence here?
+    iterator_typ = box_type(knot.iterator)
     while not is_subset(node.typ.row, iterator_typ.row):  # type: ignore
         node.typ = intersect(node.typ, iterator_typ)  # type: ignore
         resolve_boxes(knot.iterator_boxes, ctx)
@@ -169,7 +180,6 @@ def _(node: IntJoin, ctx: AnnotateContext) -> BoxType:
     lt = box_type(node.over)
     rt = box_type(node.joinee)
     t: BoxType = union(lt, rt)  # type: ignore
-    node.typ = t
     return t
 
 

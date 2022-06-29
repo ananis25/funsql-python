@@ -74,12 +74,12 @@ class Box(TabularNode):
     def __init__(
         self,
         typ: Optional[BoxType] = None,
-        handle: int = 0,
+        handle: int = NEGATIVE_INT,
         refs: Optional[list[SQLNode]] = None,
         over: Optional[SQLNode] = None,
     ) -> None:
         super().__init__()
-        self.typ = typ if typ is not None else BoxType(S("_"), RowType())
+        self.typ = typ if typ is not None else EMPTY_BOX_TYPE()
         self.handle = handle
         self.refs = refs if refs is not None else []
         self.over = over
@@ -97,7 +97,7 @@ class Box(TabularNode):
         else:
             if not self.typ.is_empty():
                 args.append(assg_expr("type", to_doc(self.typ)))
-            if self.handle > 0:
+            if self.handle >= 0:
                 args.append(assg_expr("handle", str(self.handle)))
             if len(self.refs) > 0:
                 args.append(
@@ -119,9 +119,10 @@ class NameBound(SQLNode):
     Represents a hierarchical Get node, obtained by inverting a regular
     Get node. The node `Get.a.b` is transformed as:
 
-    `Get(over = Get(S.a), name = S.b) => NameBound(over = Get(S.b), name = S.a)`
+    `Get(over = Get(S.a), name = S.b) => NameBound(over = Get(S.b), name = S.a)`.
 
-    TODO: what happens with Get nodes that are not hierarchical?
+    Another example: `Get.A.B.col` (which is equivalent to `Get.A >> Get.B >> Get.col`),
+    gets transformed to, `Get.col >> Namebound(S.B) >> NameBound(S.A)`.
     """
 
     over: SQLNode
@@ -321,15 +322,11 @@ class Knot(TabularNode):
         name = "Knot"
         args = []
 
-        if ctx.limit:
-            args.append("...")
-        else:
-            args.append(to_doc(self.iterator, ctx))
         args.append(assg_expr("name", str(self.name)))
         if ctx.limit:
             args.append("...")
         else:
-            args.append(to_doc(self.iterator, ctx))
+            args.append(assg_expr("iterator", to_doc(self.iterator, ctx)))
             boxes = list_expr([to_doc(b, ctx) for b in self.iterator_boxes])
             args.append(assg_expr("iterator_boxes", boxes))
 
@@ -384,12 +381,16 @@ class IntIterate(TabularNode):
 
 
 class IntJoin(TabularNode):
+    """Join nodes are replaced with `IntJoin` nodes, since we also need to track
+    the `box` and `lateral` attributes.
+    """
+
     joinee: SQLNode
     on: SQLNode
     left: bool
     right: bool
     skip: bool
-    typ: BoxType
+    box: Box
     lateral: list[SQLNode]
     over: Optional[SQLNode]
 
@@ -400,7 +401,7 @@ class IntJoin(TabularNode):
         left: bool = False,
         right: bool = False,
         skip: bool = False,
-        typ: Optional[BoxType] = None,
+        box: Optional[Box] = None,
         lateral: Optional[list[SQLNode]] = None,
         over: Optional[SQLNode] = None,
     ):
@@ -410,7 +411,7 @@ class IntJoin(TabularNode):
         self.left = left
         self.right = right
         self.skip = skip
-        self.typ = typ if typ is not None else EMPTY_BOX_TYPE()
+        self.box = box if box is not None else Box()
         self.lateral = [] if lateral is None else lateral
         self.over = over
 
@@ -446,7 +447,7 @@ class IntJoin(TabularNode):
             left=self.left,
             right=self.right,
             skip=self.skip,
-            typ=self.typ,
+            box=self.box,
             lateral=self.lateral,
             over=_rebase_node(self.over, pre),
         )
@@ -477,8 +478,6 @@ def _(node: Box) -> Symbol:
 # Implements the Annotation context and annotate methods for
 # each node
 # -----------------------------------------------------------
-
-NEGATIVE_INT = -1000  # placeholder negative value as stand-in for missing index
 
 
 class PathMap:
@@ -540,7 +539,7 @@ class AnnotateContext:
 
     @contextmanager
     def extend_cte_nodes(self, more_nodes: Mapping[Symbol, SQLNode]):
-        """Contex manager for extending the container of cte_nodes with new labels,
+        """Context manager for extending the container of cte_nodes with new labels,
         and restoring the previous value on exit.
         """
         old_nodes = self.cte_nodes
@@ -566,6 +565,9 @@ class AnnotateContext:
         return self.path_map.get_path(dest)
 
     def make_handle(self, node: SQLNode) -> int:
+        """When encountering a node used as a bound reference, i.e. `node >> Get.X`, give it
+        an id so the corresponding reference can track it.
+        """
         if node not in self.handles:
             self.handles[node] = len(self.handles)
         return self.handles[node]
@@ -633,6 +635,9 @@ def annotate(
             box = Box(over=node_p)
             ctx.boxes.append(box)
             ctx.mark_origin(box)
+
+            if isinstance(node_p, IntJoin):
+                node_p.box = box
         return box
 
 
@@ -808,26 +813,26 @@ def _(node: Group, ctx: AnnotateContext) -> SQLNode:
 @annotate_node.register
 def _(node: Iterate, ctx: AnnotateContext) -> SQLNode:
     """
-    * Iterate base >> Iterate (Iterate loop)
+    The query,
+    * `q = base_query >> Iterate (From(alias) >> loop_query >> As(alias))`
     gets translated into:
-    * Iterate base >> Knot (iterator = Iterate loop) >> IntIterate,
-    Knot (Iterate loop) >> Iterate loop
+    * `inter = base_query >> Knot (inter >> loop_query)`
+    * `q = inter >> IntIterate()`
     """
     over_p = annotate(node.over, ctx)
-    knot_box = Box()
-    knot = Knot(iterator=node.iterator, box=knot_box, over=over_p)
+    knot = Knot(iterator=node.iterator, box=Box(), over=over_p)
     ctx.mark_origin(knot)
-    knot_box.over = knot
-    ctx.boxes.append(knot_box)
-    over_p = knot_box
-    ctx.mark_origin(over_p)
 
-    with ctx.extend_cte_nodes({knot.name: over_p}):
+    knot.box.over = knot
+    ctx.boxes.append(knot.box)
+    ctx.mark_origin(knot.box)
+
+    with ctx.extend_cte_nodes({knot.name: knot.box}):
         start_at = len(ctx.boxes)
         iterator_p = annotate(node.iterator, ctx)
     knot.iterator = iterator_p
     knot.iterator_boxes = ctx.boxes[start_at:]
-    return IntIterate(name=label(node.over), iterator_name=knot.name, over=over_p)
+    return IntIterate(name=label(node.over), iterator_name=knot.name, over=knot.box)
 
 
 @annotate_node.register
