@@ -17,12 +17,14 @@ The API is pretty similar to the original Julia library, so you are good to go.
 * Track the shape of the data through operations, and the namespace. 
 
 ### More notes
-Q. How much of SQL syntax is supported? 
-A. Window functions, correlated/lateral join queries, CTEs. are all supported. Aggregation queries like Cube/Rollup, Grouping Sets, etc. haven't been implemented yet. 
+* Q. How much of SQL syntax is supported? 
+
+    Ans. Window functions, correlated/lateral join queries, CTEs. are all supported. Aggregation queries like Cube/Rollup, Grouping Sets, etc. haven't been implemented yet. 
     FunSQL is oblivious to the specific UDF/aggregate functions supported by database engines, if they fit the `Fun` node syntax, FunSQL can include it in the output SQL query.
 
-Q. Which databases can FunSQL work with? 
-A. Currently, Sqlite/Postgres. Maybe MYSQL, but I have never used it. 
+* Q. Which databases can FunSQL work with? 
+
+    Ans. Currently, Sqlite/Postgres. Maybe MYSQL, but I have never used it. 
 
     As noted above, FunSQL models the shape of the data, and its namespace through different tabular operations. After resolving column references, and verifying the query is legitimate, FunSQL compiles the input tree of SQL nodes to a tree of SQL clause objects. These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation. 
 
