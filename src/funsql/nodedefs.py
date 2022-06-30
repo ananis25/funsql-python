@@ -61,6 +61,8 @@ __all__ = [
     "Desc",
     "ValuesTable",
     "aka",
+    "eq",
+    "LeftJoin",
     "F",
 ]
 
