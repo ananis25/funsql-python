@@ -4,12 +4,108 @@
 [![Changelog](https://img.shields.io/github/v/release/ananis25/funsql-python?include_prereleases&label=changelog)](https://github.com/ananis25/funsql-python/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/ananis25/funsql-python/blob/main/LICENSE)
 
-`funsql` is a python library to write SQL queries in a way that is more composable. This implementation follows closely the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! 
+`funsql` is a python library to write SQL queries in a way that is more composable. 
 
-While I try improve the documentation here, here is material from the parent project which motivates the library. The python API is pretty similar to the original Julia library, so after reading the original docs, you are good to go. 
+This implementation follows closely the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/). Thanks to the original authors who have been refining the idea for some time! The original project does a very good job of motivating the library, there is little point repeating it. The python API is pretty similar to the original Julia library, so after reading the original docs, you are good to go. 
+
 1. [Why FunSQL?](https://mechanicalrabbit.github.io/FunSQL.jl/stable/guide/#Why-FunSQL?)
 2. A [presentation](https://www.youtube.com/watch?v=rGWwmuvRUYk) from JuliaCon
 
+
+## Table of Contents
+
+- [Example](##Example)
+- [Usage](##Usage)
+- [Concept](##Concept)
+- [More notes](##More-notes)
+- [Installation](##Installation)
+- [Development](##Development)
+
+
+## Example
+
+_When was the last time each person born between 1930 and 1940 and living in Illinois was seen by a healthcare provider?_
+
+<details><summary>Database Schema</summary>
+
+![](./docs/example-schema.drawio.svg)
+
+</details>
+
+<details><summary>Pipeline Diagram</summary>
+
+![](./docs/example-pipeline.drawio.svg)
+
+</details>
+
+<details open><summary>Python Code</summary>
+
+```py
+location = SQLTable(S.location, [S.location_id, S.city, S.state])
+person = SQLTable(S.person, [S.person_id, S.year_of_birth, S.location_id])
+visit_occurence = SQLTable(
+    S.visit_occurence,
+    [S.visit_occurence_id, S.person_id, S.visit_start_date, S.visit_end_date],
+)
+
+people_in_grp = From(person) >> Where(Fun("between", Get.year_of_birth, 1930, 1940))
+people_in_il = people_in_grp >> Join(
+    From(location) >> Where(Fun("=", Get.state, "IL")) >> As(S.loc),
+    on=Fun("=", Get.location_id, Get.loc.location_id),
+)
+people_visits = people_in_il >> Join(
+    From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp),
+    on=Fun("=", Get.person_id, Get.visit_grp.person_id),
+    left=True,
+)
+people_last_visits = people_visits >> Select(
+    Get.person_id,
+    Get.visit_grp >> Agg.max(Get.visit_start_date) >> As(S.last_visit_date),
+)
+
+render(people_last_visits)
+```
+
+</details>
+
+<details><summary>Output SQL query</summary>
+
+```sql
+SELECT
+  "person_2"."person_id", 
+  "visit_grp_1"."max" AS "last_visit_date"
+FROM (
+  SELECT
+    "person_1"."location_id", 
+    "person_1"."person_id"
+  FROM "person" AS "person_1"
+  WHERE ("person_1"."year_of_birth" BETWEEN 1930 AND 1940)
+) AS "person_2"
+INNER JOIN (
+  SELECT "location_1"."location_id"
+  FROM "location" AS "location_1"
+  WHERE ("location_1"."state" = 'IL')
+) AS "loc_1" ON ("person_2"."location_id" = "loc_1"."location_id")
+LEFT JOIN (
+  SELECT
+    "visit_occurence_1"."person_id", 
+    max("visit_occurence_1"."visit_start_date") AS "max"
+  FROM "visit_occurence" AS "visit_occurence_1"
+  GROUP BY "visit_occurence_1"."person_id"
+) AS "visit_grp_1" ON ("person_2"."person_id" = "visit_grp_1"."person_id")
+```
+</details>
+
+FunSQL models the SQL semantics as a set of operations on tabular data. SQL clauses like `FROM`, `WHERE`, and `JOIN` are represented using instances of `From`, `Where`, and `Join` classes, and they are applied in sequence by connecting them with the `>>` operator. Note the absence of a FunSQL counterpart to nested `SELECT` clauses; when necessary, FunSQL automatically adds nested subqueries and
+threads column references and aggregate expressions through them. 
+
+Scalar expressions are represented using: 
+* `Get.person_id` is a reference to a column. 
+* `Get.loc.person_id` refers to a column fenced by `As(S.loc)`. Aliasing helps disambiguate column references. 
+* `Fun.between` and `Fun("==", ...)` is how FunSQL represents SQL functions and operators. 
+* `Agg.max` is a notation for aggregate functions. 
+
+FunSQL queries and their intermediate components are first-class python objects. So, they can be constructed independently, passed around as values, and freely composed together. 
 
 ## Usage
 
@@ -79,7 +175,7 @@ FunSQL tracks the shape of the data as SQL operations are applied to it, and use
 
 ## Installation
 
-Install this library using `pip`:
+The FunSQL python library doesn't have any dependencies. Install this library using `pip`:
 
     $ pip install funsql-python
 
