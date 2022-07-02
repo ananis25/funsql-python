@@ -16,12 +16,12 @@ The original project does a very good job of motivating the library, there is li
 
 ## Table of Contents
 
-- [Example](##Example)
-- [Usage](##Usage)
-- [Concept](##Concept)
-- [More notes](##More-notes)
-- [Installation](##Installation)
-- [Development](##Development)
+- [Example](#example)
+- [Usage](#usage)
+- [Concept](#concept)
+- [More notes](#more-notes)
+- [Installation](#installation)
+- [Development](#development)
 
 
 ## Example
@@ -125,9 +125,7 @@ Writing a FunSQL query is much like assmembling the logical query plan in a SQL 
 q = (
     From(person)
     >> Join(
-        From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp),
-        on=Fun("=", Get.person_id, Get.visit_grp.person_id),
-        left=True,
+        From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp), on= ..., left=True,
     )
     >> Where(...)
     >> Select(..., Get.visit_grp >> Agg.max(Get.visit_start_date))
