@@ -1,5 +1,7 @@
 ## Query compilation
 
+[INCOMPLETE]
+
 The FunSQL library makes multiple passes over the input node graph, to compile it down to a valid SQL query. 
 
 ### Annotate

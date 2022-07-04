@@ -44,7 +44,7 @@ _When was the last time each person born between 1930 and 1940 and living in Ill
 
 <details open><summary>Python Code</summary>
 
-```py
+```python
 location = SQLTable(S.location, [S.location_id, S.city, S.state])
 person = SQLTable(S.person, [S.person_id, S.year_of_birth, S.location_id])
 visit_occurence = SQLTable(
@@ -121,7 +121,7 @@ You'd also note writing expressions isn't particularly convenient; `Fun("between
 <details>
 <summary>Writing your own primitives</summary>
 
-```py
+```python
 # A left-join operator, for when passing an extra arg is tedious
 def LeftJoin(*args, **kwargs):
     return Join(*args, left=True, **kwargs)
@@ -149,28 +149,28 @@ The `docs` directory has examples on how to use the library.
 * `using-nodes.ipynb` - This is the user facing API, and shows how to use FunSQL to construct SQL queries. 
 * `using-clauses.ipynb` - FunSQL compiles the tree of SQL nodes to something close to the lexical structure of SQL, called clause objects.  These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation.  When projects like [Substrait](https://substrait.io/) are further along, might be a good idea to use that as a backend instead. 
 
-The `examples` directory has more examples of queries written using FunSQL. 
+The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository has more examples of queries written using FunSQL. 
 
 <br>
 
 ## Concept
 
-[TODO - compiler docs that detail how this works]
-
 Writing a FunSQL query is much like assmembling the logical query plan in a SQL engine; `Where`, `Join`, `Select` _functions_ correspond to  `FILTER`, `JOIN`, `PROJECTION` nodes in a query plan.  The useful bit FunSQL improves at, is allowing column references (including aggregates) to be specified as late as possible.  When a query is rendered, FunSQL goes over the full query pipeline and asserts if it is valid.  Consider a segment of the example query above, where we want to query over visits made by each patient. 
 
-    ```py
-    q = (
-        From(person)
-        >> Join(
-            From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp), on= ..., left=True,
-        )
-        >> Where(...)
-        >> Select(..., Get.visit_grp >> Agg.max(Get.visit_start_date))
+```python
+q = (
+    From(person)
+    >> Join(
+        From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp), on= ..., left=True,
     )
-    ```
+    >> Where(...)
+    >> Select(..., Get.visit_grp >> Agg.max(Get.visit_start_date))
+)
+```
 
 Note that we join the person records with the visits records already grouped by each person. However, we didn't have to explicitly specify the aggregation over all visit start dates, until we needed to report the last visit date.  FunSQL tracks the shape of the data, as SQL operations are applied to it, letting us construct modular queries.  For example, if you want to compute some other aggregation over patient visits, you just need to swap the last `Select` statement! 
+
+The `docs` directory has more notes on how the compiler works, and the debugging output for some sample queries. 
 
 <br>
 
@@ -179,6 +179,7 @@ Note that we join the person records with the visits records already grouped by 
 <details>
 <summary>Supported SQL subset? </summary>
 
+
 Window functions, nested queries, lateral joins, CTEs. are all supported.  Aggregation queries like Cube/Rollup, Grouping Sets, etc. haven't been implemented yet. 
 FunSQL is oblivious to the specific UDF/aggregate functions supported by database engines, if they fit the `Fun` node syntax, FunSQL can include it in the output SQL query.
 </details>
@@ -186,6 +187,7 @@ FunSQL is oblivious to the specific UDF/aggregate functions supported by databas
 
 <details>
 <summary>Supported database engines? </summary>
+
 
 FunSQL is not a database connector and only produces the SQL query string.  Currently, it can produce queries in the Sqlite/Postgres dialect.  Maybe MySQL, but I have never used it. 
 
@@ -199,12 +201,14 @@ The blocker is that `Calcite` is a Java library; I have never written Java, and 
 <details>
 <summary>Supported languages? </summary>
 
+
 This repository implements a python library, while the original implementation of FunSQL is in Julia.  The core idea of tracking column references and data shape is not a lot of code and easy enough to port.  Once we can integrate with the Substrait/Calcite projects, I intend to write a Rust implementation, so individual language bindings are even shorter. 
 
 </details>
 
 <details>
 <summary>Similar projects? </summary>
+
 
 There are multiple libraries/languages that make writing SQL easier. The comparison below is not fully accurate since I haven't used the non-python tools significantly. 
 
@@ -222,7 +226,7 @@ There are multiple libraries/languages that make writing SQL easier. The compari
 
     Pypika converts a data structure assembled in python to a SQL query string, and shares the scope of FunSQL.   However, it is a thin wrapper around SQL expressions and doesn't model the semantics of SQL operations, resulting in incorrect output. 
 
-        ```py
+        ```python
         from pypika import Query, Table        
         c = Table("customers")
         q1 = Query.from_(c).limit(100).where(c.city == "Mumbai").select(c.name)

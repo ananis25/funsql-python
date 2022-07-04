@@ -14,6 +14,7 @@ from .common import Symbol, S
 
 # compiling queries
 from .render import (
+    SQLString,
     RenderDepth,
     render,
     render_clause,

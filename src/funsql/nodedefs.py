@@ -94,7 +94,7 @@ class ExtendAttrs(type):
     def __getattr__(cls, key: str) -> Callable:
         if key in RESERVED_WORDS:
             raise AttributeError(
-                "fluent syntax isn't supported for reserved words, use the call expression syntax instead"
+                f"{key} is a reserved word, please use the call expression syntax instead; `Get(...)` or `Agg(...)`"
             )
         return partial(cls, key)
 
@@ -108,7 +108,7 @@ class ExtendAttrsFull(type):
     def __getattr__(cls, key: str) -> Any:
         if key in RESERVED_WORDS:
             raise AttributeError(
-                "fluent syntax isn't supported for reserved words, use the call expression syntax instead"
+                f"{key} is a reserved word, please use the call expression syntax instead; `Get(...)` or `Agg(...)`"
             )
         return cls(key)
 
