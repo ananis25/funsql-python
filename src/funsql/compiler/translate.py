@@ -280,12 +280,12 @@ def translate_node(node: SQLNode, ctx: TranslateContext) -> Optional[SQLClause]:
 @translate_node.register
 def _(node: Agg, ctx: TranslateContext) -> SQLClause:
     args: list[SQLClause] = []
-    if str(node.name).upper() == "COUNT" and len(node.args) == 0:
+    if str(node._name).upper() == "COUNT" and len(node.args) == 0:
         args = [OP(S("*"))]
     else:
         args = translate(node.args, ctx)
     filter_ = translate(node.filter_, ctx)
-    return AGG(node.name, *args, distinct=node.distinct, filter_=filter_)
+    return AGG(node._name, *args, distinct=node.distinct, filter_=filter_)
 
 
 @translate_node.register
@@ -317,7 +317,7 @@ _FUNC_REPLACE = {
 
 @translate_node.register
 def _(node: Fun, ctx: TranslateContext) -> SQLClause:
-    fn = str(node.name).upper()
+    fn = str(node._name).upper()
 
     if fn in ("NOT", "LIKE", "EXISTS", "=", "==", "!="):
         name = S(_FUNC_REPLACE.get(fn, fn))
@@ -403,10 +403,10 @@ def _(node: Sort, ctx: TranslateContext) -> SQLClause:
 
 @translate_node.register
 def _(node: Var, ctx: TranslateContext) -> SQLClause:
-    if node.name in ctx.vars_:
-        return ctx.vars_[node.name]
+    if node._name in ctx.vars_:
+        return ctx.vars_[node._name]
     else:
-        return VAR(node.name)
+        return VAR(node._name)
 
 
 # -----------------------------------------------------------
@@ -524,7 +524,7 @@ def _(node: As, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
 def _(node: Define, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     assert node.over is not None
     base = assemble(node.over, ctx)
-    if not any(isinstance(ref, Get) and ref.name in node.label_map for ref in refs):
+    if not any(isinstance(ref, Get) and ref._name in node.label_map for ref in refs):
         return base
 
     if not isinstance(base.clause, (SELECT, UNION)):
@@ -538,8 +538,8 @@ def _(node: Define, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     translates: list[tuple[SQLNode, SQLClause]] = []
     tr_cache: ALIAS_TO_CLAUSE = dict()
     for ref in refs:
-        if isinstance(ref, Get) and ref.over is None and ref.name in node.label_map:
-            name = ref.name
+        if isinstance(ref, Get) and ref.over is None and ref._name in node.label_map:
+            name = ref._name
             if name not in tr_cache:
                 _define = node.args[node.label_map[name]]
                 with ctx.substitute_vars_n_subs(subs=subs):
@@ -579,9 +579,11 @@ def _(node: FromTable, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage
     seen: set[Symbol] = set()
     for ref in refs:
         assert (
-            isinstance(ref, Get) and ref.over is None and ref.name in node.table.columns
+            isinstance(ref, Get)
+            and ref.over is None
+            and ref._name in node.table.columns
         )
-        seen.add(ref.name)
+        seen.add(ref._name)
     alias = ctx.allocate_alias(node.table.name)
 
     schema = None if node.table.schema is None else ID(name=node.table.schema)
@@ -596,7 +598,7 @@ def _(node: FromTable, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            repl[ref] = ref.name
+            repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 
@@ -606,8 +608,8 @@ def _(node: FromValues, refs: list[SQLNode], ctx: TranslateContext) -> Assemblag
     column_set = set(columns)
     seen: set[Symbol] = set()
     for ref in refs:
-        assert isinstance(ref, Get) and ref.over is None and ref.name in column_set
-        seen.add(ref.name)
+        assert isinstance(ref, Get) and ref.over is None and ref._name in column_set
+        seen.add(ref._name)
 
     rows: list[tuple]
     column_aliases: list[Symbol]
@@ -653,7 +655,7 @@ def _(node: FromValues, refs: list[SQLNode], ctx: TranslateContext) -> Assemblag
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            repl[ref] = ref.name
+            repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 
@@ -678,8 +680,8 @@ def _(node: Group, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     translates: list[tuple[SQLNode, SQLClause]] = []
     for ref in refs:
         if isinstance(ref, Get) and ref.over is None:
-            assert ref.name in node.label_map
-            translates.append((ref, by[node.label_map[ref.name]]))
+            assert ref._name in node.label_map
+            translates.append((ref, by[node.label_map[ref._name]]))
         elif isinstance(ref, Agg) and ref.over is None:
             with ctx.substitute_vars_n_subs(subs=subs):
                 translates.append((ref, translate(ref, ctx)))
@@ -958,7 +960,7 @@ def _(node: Select, refs: list[SQLNode], ctx: TranslateContext) -> Assemblage:
     repl: NODE_TO_ALIAS = dict()
     for ref in refs:
         assert isinstance(ref, Get) and ref.over is None
-        repl[ref] = ref.name
+        repl[ref] = ref._name
     return Assemblage(clause, cols=cols, repl=repl)
 
 

@@ -8,11 +8,9 @@
 
 This implementation closely follows the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/).  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/). 
 
-The original project does a very good job of motivating the library, there is little point repeating it.  The python port retains a similar API, so after reading the original docs, you are good to go. 
-
+The original project does a very good job of motivating the library. The python port retains a similar API, so there is little point repeating it. 
 1. [Why FunSQL?](https://mechanicalrabbit.github.io/FunSQL.jl/stable/guide/#Why-FunSQL?)
 2. A [presentation](https://www.youtube.com/watch?v=rGWwmuvRUYk) from JuliaCon
-
 
 Below are some notes about how to use the python library, and my understanding of how FunSQL works. 
 
@@ -32,13 +30,13 @@ _When was the last time each person born between 1930 and 1940 and living in Ill
 
 <details><summary>Database Schema</summary>
 
-![](./docs/example-schema.drawio.svg)
+![](./docs/assets/example-schema.drawio.svg)
 
 </details>
 
 <details><summary>Pipeline Diagram</summary>
 
-![](./docs/example-pipeline.drawio.svg)
+![](./docs/assets/example-pipeline.drawio.svg)
 
 </details>
 
@@ -146,10 +144,14 @@ def get_stats(col):
 ## Usage
 
 The `docs` directory has examples on how to use the library.
-* `using-nodes.ipynb` - This is the user facing API, and shows how to use FunSQL to construct SQL queries. 
+
+* `usage-guide.ipynb` - Introduces the verbs available in FunSQL, and how to assmeble queries using them. 
+
+* `using-nodes.ipynb` - This is the user facing API, and adds more detail about each FunSQL node.
+
 * `using-clauses.ipynb` - FunSQL compiles the tree of SQL nodes to something close to the lexical structure of SQL, called clause objects.  These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation.  When projects like [Substrait](https://substrait.io/) are further along, might be a good idea to use that as a backend instead. 
 
-The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository has more examples of queries written using FunSQL. 
+The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository has more examples of queries/projects written using FunSQL. 
 
 <br>
 
