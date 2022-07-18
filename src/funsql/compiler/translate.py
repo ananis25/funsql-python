@@ -1,8 +1,8 @@
 """
 This module implements the compiler pass to translate the tree of SQLnode 
-objects to a tree of SQLClause objects, which is represents the lexical 
+objects to a tree of SQLClause objects, which represents the lexical 
 structure of the SQL query. The SQLClause expression can then be serialized 
-into the SQL query string. 
+almost directly into the SQL query string. 
 """
 
 from contextlib import contextmanager
@@ -42,7 +42,9 @@ class Assemblage:
         self.repl = repl if repl is not None else dict()
 
     def get_complete_select(self) -> SQLClause:
-        """Construct the SELECT clause to a partially assembled query and return."""
+        """Construct the SELECT clause to a partially assembled query if it didn't have one
+        and return.
+        """
         clause = self.clause
         if not isinstance(clause, (SELECT, UNION)):
             args = cols_to_select_args(self.cols)
@@ -265,19 +267,22 @@ def translate(
     assert isinstance(node, SQLNode), f"expected SQLNode, got: {type(node)}"
     if node in ctx.subs:
         return ctx.subs[node]
+    elif isinstance(node, Box):
+        base: Assemblage = assemble(node, ctx)
+        return base.get_complete_select()
     else:
-        return translate_node(node, ctx)
+        return translate_scalar(node, ctx)
 
 
 @singledispatch
-def translate_node(node: SQLNode, ctx: TranslateContext) -> Optional[SQLClause]:
+def translate_scalar(node: SQLNode, ctx: TranslateContext) -> Optional[SQLClause]:
     """specific translations for each subtype of SQLNode"""
     raise NotImplementedError(
         f"Translation isn't implemented for node of type: {type(node)}"
     )
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: Agg, ctx: TranslateContext) -> SQLClause:
     args: list[SQLClause] = []
     if str(node._name).upper() == "COUNT" and len(node.args) == 0:
@@ -288,12 +293,12 @@ def _(node: Agg, ctx: TranslateContext) -> SQLClause:
     return AGG(node._name, *args, distinct=node.distinct, filter_=filter_)
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: As, ctx: TranslateContext) -> Optional[SQLClause]:
     return translate(node.over, ctx)
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: IntBind, ctx: TranslateContext) -> Optional[SQLClause]:
     vars_p = ctx.vars_.copy()
     for name, i in node.label_map.items():
@@ -303,19 +308,13 @@ def _(node: IntBind, ctx: TranslateContext) -> Optional[SQLClause]:
         return translate(node.over, ctx)
 
 
-@translate_node.register
-def _(node: Box, ctx: TranslateContext) -> SQLClause:
-    base: Assemblage = assemble(node, ctx)
-    return base.get_complete_select()
-
-
 _FUNC_REPLACE = {
     "==": "=",
     "!=": "<>",
 }
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: Fun, ctx: TranslateContext) -> SQLClause:
     fn = str(node._name).upper()
 
@@ -391,17 +390,17 @@ def _(node: Fun, ctx: TranslateContext) -> SQLClause:
         return OP(S(fn), *args)
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: Lit, ctx: TranslateContext) -> SQLClause:
     return LIT(node.val)
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: Sort, ctx: TranslateContext) -> SQLClause:
     return SORT(value=node.value, nulls=node.nulls, over=translate(node.over, ctx))
 
 
-@translate_node.register
+@translate_scalar.register
 def _(node: Var, ctx: TranslateContext) -> SQLClause:
     if node._name in ctx.vars_:
         return ctx.vars_[node._name]

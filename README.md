@@ -2,19 +2,19 @@
 
 [![PyPI](https://img.shields.io/pypi/v/funsql-python.svg)](https://pypi.org/project/funsql-python/)
 [![Changelog](https://img.shields.io/github/v/release/ananis25/funsql-python?include_prereleases&label=changelog)](https://github.com/ananis25/funsql-python/releases)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/ananis25/funsql-python/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ananis25/funsql-python/blob/main/LICENSE)
 
 `funsql` is a python library to write SQL queries in a way that is more composable. 
 
-This implementation closely follows the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/).  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/). 
+SQL is tricky to write in a modular fashion since it is a DSL with its own grammar. The straightforward way to compose SQL query fragments then must rely on string interpolation/concatenation, extended with a templating language like Jinja. FunSQL exposes the full expressive power of SQL by implementing the SQL verbs _(FROM, WHERE, GROUP BY, ...)_ as regular python objects with compositional semantics.  This approach is particularly useful for building applications that programmatically construct SQL queries.
 
-The original project does a very good job of motivating the library. The python port retains a similar API, so there is little point repeating it. 
-1. [Why FunSQL?](https://mechanicalrabbit.github.io/FunSQL.jl/stable/guide/#Why-FunSQL?)
-2. A [presentation](https://www.youtube.com/watch?v=rGWwmuvRUYk) from JuliaCon
+This implementation closely follows the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/).  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/).  Here is a [presentation](https://www.youtube.com/watch?v=rGWwmuvRUYk) talking about `FunSQL.jl` from Juliacon. 
 
-Below are some notes about how to use the python library, and my understanding of how FunSQL works. 
+Please continue below for notes on how to use the python library, and how FunSQL works. 
 
-### Table of Contents
+<br/>
+
+## Contents
 
 - [Example](#example)
 - [Usage](#usage)
@@ -43,6 +43,7 @@ _When was the last time each person born between 1930 and 1940 and living in Ill
 <details open><summary>Python Code</summary>
 
 ```python
+# define the source tables
 location = SQLTable(S.location, [S.location_id, S.city, S.state])
 person = SQLTable(S.person, [S.person_id, S.year_of_birth, S.location_id])
 visit_occurence = SQLTable(
@@ -50,6 +51,7 @@ visit_occurence = SQLTable(
     [S.visit_occurence_id, S.person_id, S.visit_start_date, S.visit_end_date],
 )
 
+# construct queries incrementally
 people_in_grp = From(person) >> Where(Fun("between", Get.year_of_birth, 1930, 1940))
 people_in_il = people_in_grp >> Join(
     From(location) >> Where(Fun("=", Get.state, "IL")) >> As(S.loc),
@@ -99,7 +101,6 @@ LEFT JOIN (
 </details>
 
 <br>
-<br>
 
 FunSQL models the SQL semantics as a set of operations on tabular data.  SQL clauses like `FROM`, `WHERE`, and `JOIN` are represented using instances of `From`, `Where`, and `Join` classes, and they are applied in sequence by connecting them with the `>>` operator.  Note the absence of a FunSQL counterpart to nested `SELECT` clauses; when necessary, FunSQL automatically adds nested subqueries and
 threads column references and aggregate expressions through them. 
@@ -112,7 +113,7 @@ Scalar expressions are represented using:
 
 FunSQL queries and their intermediate components are first-class python objects.  So, they can be constructed independently, passed around as values, and freely composed together.  
 
-You'd also note writing expressions isn't particularly convenient; `Fun("between", Get.year_of_birth, 1930, 1940)` is too verbose for a data manipulation DSL.  While part of the reason is, operator overloading might surface bugs I haven't thought through, it also illustrates the usefulness of FunSQL being just a python library; you can build your own abstractions. 
+You'd also note writing expressions isn't particularly convenient; `Fun("between", Get.year_of_birth, 1930, 1940)` is too verbose for a data manipulation DSL.  While part of the reason is, operator overloading might surface bugs I haven't thought through, it also illustrates the usefulness of FunSQL being just a python library; you can build your own abstractions! 
 
 <br>
 
@@ -143,17 +144,10 @@ def get_stats(col):
 
 ## Usage
 
-The `docs` directory has examples on how to use the library.
+To get started, please go through the [user guide](https://nbviewer.ipython.org/github/ananis25/funsql-python/blob/main/docs/usage-guide.ipynb).  The FunSQL equivalents for the available SQL expressions are documented [here](https://nbviewer.ipython.org/github/ananis25/funsql-python/blob/main/docs/tests/using-nodes.ipynb). 
 
-* `usage-guide.ipynb` - Introduces the verbs available in FunSQL, and how to assmeble queries using them. 
+The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository adds examples of queries/projects written using FunSQL. 
 
-* `using-nodes.ipynb` - This is the user facing API, and adds more detail about each FunSQL node.
-
-* `using-clauses.ipynb` - FunSQL compiles the tree of SQL nodes to something close to the lexical structure of SQL, called clause objects.  These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation.  When projects like [Substrait](https://substrait.io/) are further along, might be a good idea to use that as a backend instead. 
-
-The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository has more examples of queries/projects written using FunSQL. 
-
-<br>
 
 ## Concept
 
@@ -174,7 +168,6 @@ Note that we join the person records with the visits records already grouped by 
 
 The `docs` directory has more notes on how the compiler works, and the debugging output for some sample queries. 
 
-<br>
 
 ## More notes
 
@@ -253,7 +246,6 @@ The FunSQL python library doesn't have any dependencies. Install this library us
 
     $ pip install funsql-python
 
-<br>
 
 ## Development
 
