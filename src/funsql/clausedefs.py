@@ -516,7 +516,7 @@ class JOIN(SQLClause):
 
         serialize(self.joinee, ctx)
         if not is_cross:
-            ctx.write(" ON ")  # TODO: why is the filter on cross joins needed?
+            ctx.write(" ON ")
             serialize(self.on, ctx)
 
 

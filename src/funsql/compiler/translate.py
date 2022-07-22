@@ -1,8 +1,8 @@
 """
 This module implements the compiler pass to translate the tree of SQLnode 
-objects to a tree of SQLClause objects, which represents the lexical 
-structure of the SQL query. The SQLClause expression can then be serialized 
-almost directly into the SQL query string. 
+objects to a tree of SQLClause objects, which represents the lexical structure 
+of the SQL query. The SQLClause expression can then be serialized almost 
+directly into the SQL query string. 
 """
 
 from contextlib import contextmanager
@@ -28,7 +28,7 @@ class Assemblage:
     """Represents a partially constructed SQL query"""
 
     clause: Optional[SQLClause]  # An SQL subquery, with(out) SELECT args
-    cols: ALIAS_TO_CLAUSE  # TODO: SELECT args if required. Umm what?
+    cols: ALIAS_TO_CLAUSE  # SELECT args if required
     repl: NODE_TO_ALIAS  # mapping referenced nodes to column aliases
 
     def __init__(
@@ -54,7 +54,6 @@ class Assemblage:
     def get_make_subs(self, alias: Optional[Symbol]) -> NODE_TO_CLAUSE:
         """Build and return a node-to-clause mapping assuming the assemblage will be
         extended/completed, if the input `alias` arg is None/not None.
-        TODO: what?
         """
         subs: NODE_TO_CLAUSE = dict()
         if alias is None:
@@ -208,6 +207,7 @@ class TranslateContext:
 
 def translate_toplevel(node: SQLNode, ctx: TranslateContext) -> SQLClause:
     """Translate the top-level SQLNode to produce a SQLClause representing the full query.
+
     * The `translate` routine starts from the query node, and produces a SQLClause, while
     any CTEs encountered are collected in the context.
     * The CTEs are converted to a WITH clause, and prepended to the previous output.

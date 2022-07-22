@@ -136,7 +136,7 @@ class SQLDialect:
     has_as_columns: bool = True
     has_datetime_types: bool = True
     values_row_constructor: Optional[str] = None
-    values_column_prefix: Optional[str] = "column"  # TODO: what this do?
+    values_column_prefix: Optional[str] = "column"
     values_column_index: int = 1
 
     def __repr__(self) -> str:

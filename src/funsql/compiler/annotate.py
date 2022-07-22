@@ -625,7 +625,7 @@ def annotate(
         return box
 
     else:
-        # TODO: this isn't necessary, just to help me debug errors early
+        # this isn't necessary, just to help me debug errors early
         if not isinstance(node, (TabularNode, As, Bind)):
             raise ErrIllFormed(path=ctx.get_path())
         with ctx.extend_path(node):

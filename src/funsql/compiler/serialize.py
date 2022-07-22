@@ -87,7 +87,7 @@ def _(data: bool, ctx: SerializationContext) -> None:
 
 @serialize.register
 def _(data: datetime.datetime, ctx: SerializationContext) -> None:
-    # TODO: Do we raise an exception when dealing with date/time values for the SQLite dialect?
+    # TODO: Should we raise an exception when dealing with date/time values for the SQLite dialect?
     ctx.write(f"TIMESTAMP '{data.isoformat()}'")
 
 

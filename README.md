@@ -6,13 +6,17 @@
 
 `funsql` is a python library to write SQL queries in a way that is more composable. 
 
-SQL is tricky to write in a modular fashion since it is a DSL with its own grammar. The straightforward way to compose SQL query fragments then must rely on string interpolation/concatenation, extended with a templating language like Jinja. FunSQL exposes the full expressive power of SQL by implementing the SQL verbs _(FROM, WHERE, GROUP BY, ...)_ as regular python objects with compositional semantics.  This approach is particularly useful for building applications that programmatically construct SQL queries.
+SQL is tricky to write in a modular fashion since it is a DSL with its own grammar. The straightforward way to compose SQL query fragments then must rely on string interpolation/concatenation, extended with a templating language like Jinja.
 
-This implementation closely follows the original Julia library [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/).  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/).  Here is a [presentation](https://www.youtube.com/watch?v=rGWwmuvRUYk) talking about `FunSQL.jl` from Juliacon. 
+FunSQL exposes the full expressive power of SQL by implementing the SQL verbs _(FROM, WHERE, GROUP BY, ...)_ as regular python objects with compositional semantics. Specifically when you need to construct SQL queries programmatically, the pipeline style of composing queries can be very useful.  
 
-Please continue below for notes on how to use the python library, and how FunSQL works. 
+This implementation closely follows the original Julia library `FunSQL.jl`.  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/).  
+1. Presentation from JuliaCon talking about FunSQL - [youtube](https://www.youtube.com/watch?v=rGWwmuvRUYk) | [slides](https://github.com/MechanicalRabbit/FunSQL.jl/files/7465997/FunSQL-JuliaCon2021.pdf)
+2. Julia library repo - [FunSQL.jl](https://github.com/MechanicalRabbit/FunSQL.jl/)
 
-<br/>
+
+Please continue below for notes on using the python library, and how FunSQL works. 
+
 
 ## Contents
 
@@ -171,39 +175,29 @@ The `docs` directory has more notes on how the compiler works, and the debugging
 
 ## More notes
 
-<details>
-<summary>Supported SQL subset? </summary>
-
+**Supported SQL subset?**
 
 Window functions, nested queries, lateral joins, CTEs. are all supported.  Aggregation queries like Cube/Rollup, Grouping Sets, etc. haven't been implemented yet. 
 FunSQL is oblivious to the specific UDF/aggregate functions supported by database engines, if they fit the `Fun` node syntax, FunSQL can include it in the output SQL query.
-</details>
 
 
-<details>
-<summary>Supported database engines? </summary>
-
+**Supported database engines?**
 
 FunSQL is not a database connector and only produces the SQL query string.  Currently, it can produce queries in the Sqlite/Postgres dialect.  Maybe MySQL, but I have never used it. 
 
 As noted above, FunSQL models the shape of the data, and its namespace through different tabular operations.  After resolving column references, and verifying the query is legitimate, FunSQL compiles the input tree of SQL nodes to a tree of SQL clause objects.  These directly translate to SQL text, only abstracting over spaces and dialect specific punctuation. 
 
-However, SQL dialects are plenty and projects like [Apache Calcite](https://calcite.apache.org/) already exist, that can write to different SQL dialects.  A better idea is to compile the FunSQL query treee to the relational node structure `Calcite` works with. That would let us support the popular database engines (and I can delete 1000 lines from the code). 
+However, SQL dialects are plenty and projects like [Apache Calcite](https://calcite.apache.org/) already exist, that can write to different variants of SQL.  A better idea is to compile the FunSQL query treee to the relational node structure `Calcite` works with. That would let us support the popular database engines (and I can delete 1000 lines from the code). 
 
 The blocker is that `Calcite` is a Java library; I have never written Java, and don't know how to compile it to a native extension that is usable from python without installing a JVM.  When projects like [Substrait](https://substrait.io/) are further along, it might be a good idea to use that as a backend instead. 
-</details>
 
-<details>
-<summary>Supported languages? </summary>
 
+**Supported languages?**
 
 This repository implements a python library, while the original implementation of FunSQL is in Julia.  The core idea of tracking column references and data shape is not a lot of code and easy enough to port.  Once we can integrate with the Substrait/Calcite projects, I intend to write a Rust implementation, so individual language bindings are even shorter. 
 
-</details>
 
-<details>
-<summary>Similar projects? </summary>
-
+**Similar projects?**
 
 There are multiple libraries/languages that make writing SQL easier. The comparison below is not fully accurate since I haven't used the non-python tools significantly. 
 
@@ -222,7 +216,7 @@ There are multiple libraries/languages that make writing SQL easier. The compari
     Pypika converts a data structure assembled in python to a SQL query string, and shares the scope of FunSQL.   However, it is a thin wrapper around SQL expressions and doesn't model the semantics of SQL operations, resulting in incorrect output. 
 
         ```python
-        from pypika import Query, Table        
+        from pypika import Query, Table
         c = Table("customers")
         q1 = Query.from_(c).limit(100).where(c.city == "Mumbai").select(c.name)
         q2 = Query.from_(c).where(c.city == "Mumbai").limit(100).select(c.name)
@@ -235,10 +229,8 @@ There are multiple libraries/languages that make writing SQL easier. The compari
 
 * Other projects: [Malloy](https://github.com/looker-open-source/malloy) is a super cool project that models relational data and queries against it, using a single language.  Queries are constructed as resuable fragments that can be composed/nested arbitrarily, and get compiled to SQL at execution time. 
 
-    FunSQL operators are similar in that they can be arbitrarily composed, though it doesn't implement the NEST operator yet.  It should be possible to use FunSQL for implementing a watered down version of Malloy in the language of your choice, though Malloy is pretty comprehensive (database connectors, built in graphing, tracking lineage) and you should use it. 
-</details>
+    FunSQL operators are similar in that they can be arbitrarily composed, though it doesn't implement the NEST operator yet.  It should be fun to use FunSQL for implementing a watered down version of Malloy in the language of your choice. Though Malloy is pretty comprehensive (database connectors, built in graphing, tracking lineage) and you should use it! 
 
-<br>
 
 ## Installation
 

@@ -1426,7 +1426,7 @@ class F:
 
 
 @register_union_type(label)
-def _(node: Union[Agg, Fun, Get]) -> Symbol:
+def _(node: Union[Agg, Fun, Get, Var]) -> Symbol:
     return node._name
 
 
@@ -1467,5 +1467,5 @@ def _(node: Union[Bind, Define, Group, Iterate, Join, Limit, Order]) -> Symbol:
 
 
 @register_union_type(label)
-def _(node: Union[Partition, Select, Sort, Var, Where, With]) -> Symbol:
+def _(node: Union[Partition, Select, Sort, Where, With]) -> Symbol:
     return label(node.over)
