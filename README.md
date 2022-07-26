@@ -59,11 +59,11 @@ visit_occurence = SQLTable(
 people_in_grp = From(person) >> Where(Fun("between", Get.year_of_birth, 1930, 1940))
 people_in_il = people_in_grp >> Join(
     From(location) >> Where(Fun("=", Get.state, "IL")) >> As(S.loc),
-    on=Fun("=", Get.location_id, Get.loc.location_id),
+    on = Fun("=", Get.location_id, Get.loc.location_id),
 )
 people_visits = people_in_il >> Join(
     From(visit_occurence) >> Group(Get.person_id) >> As(S.visit_grp),
-    on=Fun("=", Get.person_id, Get.visit_grp.person_id),
+    on = Fun("=", Get.person_id, Get.visit_grp.person_id),
     left=True,
 )
 people_last_visits = people_visits >> Select(
@@ -106,43 +106,46 @@ LEFT JOIN (
 
 <br>
 
-FunSQL models the SQL semantics as a set of operations on tabular data.  SQL clauses like `FROM`, `WHERE`, and `JOIN` are represented using instances of `From`, `Where`, and `Join` classes, and they are applied in sequence by connecting them with the `>>` operator.  Note the absence of a FunSQL counterpart to nested `SELECT` clauses; when necessary, FunSQL automatically adds nested subqueries and
-threads column references and aggregate expressions through them. 
-
-Scalar expressions are represented using: 
+FunSQL models the SQL semantics as a set of operations on tabular data.  SQL clauses like `FROM`, `WHERE`, and `JOIN` are represented using instances of `From`, `Where`, and `Join` classes, and they are applied in sequence by connecting them with the `>>` operator.  Scalar expressions are represented as: 
 * `Get.person_id` is a reference to a column. 
 * `Get.loc.person_id` refers to a column fenced by `As(S.loc)`. Aliasing helps disambiguate column references. 
 * `Fun.between` and `Fun("==", ...)` is how FunSQL represents SQL functions and operators. 
 * `Agg.max` is a notation for aggregate functions. 
 
-FunSQL queries and their intermediate components are first-class python objects.  So, they can be constructed independently, passed around as values, and freely composed together.  
+This doesn't look unlike many pipelined query languages. There are a few things of note however. 
 
-You'd also note writing expressions isn't particularly convenient; `Fun("between", Get.year_of_birth, 1930, 1940)` is too verbose for a data manipulation DSL.  While part of the reason is, operator overloading might surface bugs I haven't thought through, it also illustrates the usefulness of FunSQL being just a python library; you can build your own abstractions! 
+* FunSQL queries and their intermediate components are first-class python objects.  So, they can be constructed independently, passed around as values, and freely composed together.  
 
-<br>
+* Note the absence of a FunSQL counterpart to nested `SELECT` clauses; Or that the `Group` operation didn't ask you to specify the corresponding aggregation at the same place. 
 
-<details>
-<summary>Writing your own primitives</summary>
+    This helps a lot with code sharing across queries. When necessary, FunSQL automatically adds nested subqueries and threads column references and aggregate expressions through them. 
 
-```python
-# A left-join operator, for when passing an extra arg is tedious
-def LeftJoin(*args, **kwargs):
-    return Join(*args, left=True, **kwargs)
+* You'd also note writing expressions isn't particularly convenient; `Fun("between", Get.year_of_birth, 1930, 1940)` is too verbose for a data manipulation DSL.  
+    
+    While part of the reason is, operator overloading might surface bugs I haven't thought through, it also illustrates the usefulness of FunSQL being just a python library; you can build your own abstractions! 
 
-# shorthand for an equality expression
-def eq(a, b):
-    return Fun("=", a, b)
+    <details>
+    <summary>Writing your own primitives</summary>
 
-# this can directly be subbed as arguments in a `Select` node
-def get_stats(col):
-    return [
-        Agg.max(col) >> As("max_val"), 
-        Agg.min(col) >> As("min_val"), 
-        Agg.mean(col) >> As("mean_val"),
-        Agg.stddev(col) >> As("stddev_val"),
-    ]
-```
-</details>
+    ```python
+    # A left-join operator, for when passing an extra arg is tedious
+    def LeftJoin(*args, **kwargs):
+        return Join(*args, left=True, **kwargs)
+
+    # shorthand for an equality expression
+    def eq(a, b):
+        return Fun("=", a, b)
+
+    # this can directly be subbed as arguments in a `Select` node
+    def get_stats(col):
+        return [
+            Agg.max(col) >> As("max_val"), 
+            Agg.min(col) >> As("min_val"), 
+            Agg.mean(col) >> As("mean_val"),
+            Agg.stddev(col) >> As("stddev_val"),
+        ]
+    ```
+    </details>
 
 <br>
 
@@ -155,7 +158,9 @@ The [funsql-examples](https://github.com/ananis25/funsql-examples/) repository a
 
 ## Concept
 
-Writing a FunSQL query is much like assmembling the logical query plan in a SQL engine; `Where`, `Join`, `Select` _functions_ correspond to  `FILTER`, `JOIN`, `PROJECTION` nodes in a query plan.  The useful bit FunSQL improves at, is allowing column references (including aggregates) to be specified as late as possible.  When a query is rendered, FunSQL goes over the full query pipeline and asserts if it is valid.  Consider a segment of the example query above, where we want to query over visits made by each patient. 
+Writing a FunSQL query is much like assmembling the logical query plan in a SQL engine; `Where`, `Join`, `Select` _functions_ correspond to  `FILTER`, `JOIN`, `PROJECTION` nodes in a query plan.  The useful bit FunSQL improves at, is allowing column references (including aggregates) to be specified as late as possible.  When a query is rendered, FunSQL goes over the full query pipeline and asserts if it is valid.  
+
+Consider a segment of the example query above, where we want to query over visits made by each patient. 
 
 ```python
 q = (
@@ -210,6 +215,8 @@ There are multiple libraries/languages that make writing SQL easier. The compari
 * ORMs: [SQLAlchemy](https://www.sqlalchemy.org/). 
 
     ORMs simplify interaction with databases by letting us define language constructs like python classes mapping to database tables, and then writing queries by calling methods on them.  I would expect the SQLAlchemy core library can be used to build queries incrementally, but haven't delved into it much. 
+
+    Note however that ORMs are great at something, **static typing**. Static analysis at build-time/editing eliminates a ton of bugs.  FunSQL, in contrast, relies on runtime execution to ascertain that the query is legitimate and all variable references can be resolved. It is thus more suited for analytic contexts, like running notebooks where any errors are immediately surfaced. 
 
 * Query Builders: [PyPika](https://github.com/kayak/pypika). 
 
