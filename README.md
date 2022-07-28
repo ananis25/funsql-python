@@ -8,7 +8,7 @@
 
 SQL is tricky to write in a modular fashion since it is a DSL with its own grammar. The straightforward way to compose SQL query fragments then must rely on string interpolation/concatenation, extended with a templating language like Jinja.
 
-FunSQL exposes the full expressive power of SQL by implementing the SQL verbs _(FROM, WHERE, GROUP BY, ...)_ as regular python objects with compositional semantics. Specifically when you need to construct SQL queries programmatically, the pipeline style of composing queries can be very useful.  
+FunSQL exposes the full expressive power of SQL by implementing the SQL verbs _(FROM, WHERE, GROUP BY, ...)_ as regular python objects with compositional semantics. Specifically, when you need to construct SQL queries _programmatically_, the pipeline style of composing queries can be very useful.  
 
 This implementation closely follows the original Julia library `FunSQL.jl`.  Thanks to the original authors, Clark Evans and Kyrylo Simonov, who have been refining the idea for some time; you should check their previous work [here](https://querycombinators.org/).  
 1. Presentation from JuliaCon talking about FunSQL - [youtube](https://www.youtube.com/watch?v=rGWwmuvRUYk) | [slides](https://github.com/MechanicalRabbit/FunSQL.jl/files/7465997/FunSQL-JuliaCon2021.pdf)

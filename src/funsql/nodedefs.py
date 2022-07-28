@@ -16,7 +16,6 @@ from typing import Any, Optional, Union, Callable
 from .common import Symbol, S, LITERAL_TYPES, register_union_type
 from .sqlcontext import SQLTable, ValuesTable
 from .nodes import *
-from .clauses import SQLClause
 from .clausedefs import (
     Frame,
     FrameMode,

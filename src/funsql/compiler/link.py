@@ -258,18 +258,14 @@ def _(node: Define, refs: list[SQLNode], ctx: AnnotateContext) -> None:
 
 @register_union_type(link)
 def _(
-    node: Union[FromNothing, FromTable, FromValues],
+    node: Union[FromNothing, FromTable, FromValues, FromReference],
     refs: list[SQLNode],
     ctx: AnnotateContext,
 ) -> None:
-    pass
-
-
-@link.register
-def _(node: FromReference, refs: list[SQLNode], ctx: AnnotateContext) -> None:
-    box = check_box(node.over)
-    for ref in refs:
-        box.refs.append(NameBound(over=ref, name=node.name))
+    if isinstance(node, FromReference):
+        box = check_box(node.over)
+        for ref in refs:
+            box.refs.append(NameBound(over=ref, name=node.name))
 
 
 @link.register
@@ -322,6 +318,7 @@ def _(node: IntJoin, refs: list[SQLNode], ctx: AnnotateContext) -> None:
         lbox.refs.extend(lrefs)
         return
 
+    # gather any lateral references (if the right side contains a Bind node)
     gather_n_validate(node.joinee, node.lateral, lbox.typ, ctx)
     lbox.refs.extend(node.lateral)
 

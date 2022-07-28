@@ -169,15 +169,13 @@ class HandleBound(SQLNode):
 
 
 # A From node is specialized to one of:
-# - FromNothing
-# - FromTable
-# - FromReference
-# - FromValues
+# - FromNothing: stand-in for a From node without a reference
+# - FromTable: stand-in for a From node with a table as source
+# - FromReference: stand-in for a From node referencing a source through an alias
+# - FromValues: stand-in for a From node with a list of values as source
 
 
 class FromNothing(TabularNode):
-    """FromNothing is a stand-in for a From node without a reference."""
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -187,8 +185,6 @@ class FromNothing(TabularNode):
 
 
 class FromTable(TabularNode):
-    """FromTable is a stand-in for a From node with a table as source."""
-
     table: SQLTable
 
     def __init__(self, table: SQLTable) -> None:
@@ -209,8 +205,6 @@ class FromTable(TabularNode):
 
 
 class FromReference(TabularNode):
-    """FromReference is a stand-in for a From node referencing a source through an alias."""
-
     over: SQLNode
     name: Symbol
 
@@ -230,8 +224,6 @@ class FromReference(TabularNode):
 
 
 class FromValues(TabularNode):
-    """FromValues is a stand-in for a From node with a list of values as source."""
-
     source: ValuesTable
 
     def __init__(self, source: ValuesTable) -> None:
